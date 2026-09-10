@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VocaMini – Từ điển & Học từ vựng tiếng Anh (TFlat Mini)</title>
+  <meta name="description" content="Ứng dụng tra từ điển, quản lý sổ tay từ vựng và luyện tập qua game sắp xếp chữ cái, trắc nghiệm nhanh gọn, không cần máy chủ.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="apple-touch-icon" href="icon-192.jpg">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">📚</div>
+        <span>VocaMini</span>
+        <span class="brand-badge">TFlat Mini</span>
+      </div>
+
+      <!-- Desktop Nav -->
+      <nav class="desktop-nav">
+        <button class="nav-link-btn active" data-view="view-dict">
+          🔍 Tra từ điển
+        </button>
+        <button class="nav-link-btn" data-view="view-notebooks">
+          📖 Sổ tay từ vựng
+        </button>
+        <button class="nav-link-btn" data-view="view-learn">
+          🎮 Học qua Game
+        </button>
+        <button class="nav-link-btn" data-view="view-stats">
+          📊 Thống kê
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-btn" id="btn-toggle-theme" title="Chuyển chế độ sáng/tối">
+          🌙
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Areas -->
+  <main class="main-content">
+
+    <!-- ==========================================================
+         VIEW 1: TRA TỪ ĐIỂN
+         ========================================================== -->
+    <section id="view-dict" class="view-section active">
+      <div class="search-box-wrapper">
+        <form id="dict-search-form" class="search-box">
+          <span style="font-size: 1.2rem; color: var(--text-muted); margin-right: 8px;">🔍</span>
+          <div style="position: relative; flex: 1; display: flex; align-items: center;">
+            <input 
+              type="text" 
+              id="dict-search-input" 
+              class="search-input" 
+              placeholder="Nhập từ tiếng Anh để tra..." 
+              autocomplete="off"
+              autofocus
+            >
+            <div id="search-autocomplete-dropdown" class="autocomplete-dropdown"></div>
+          </div>
+          <button type="button" id="btn-clear-search" class="search-clear" title="Xoá ô tìm kiếm">✕</button>
+          <button type="submit" class="btn btn-primary btn-sm">Tra từ</button>
+        </form>
+
+        <div class="search-quick-tags">
+          <span style="font-weight: 600;">Gợi ý từ hay gặp:</span>
+          <span class="quick-tag">capacity</span>
+          <span class="quick-tag">negotiate</span>
+          <span class="quick-tag">comprehensive</span>
+          <span class="quick-tag">implement</span>
+          <span class="quick-tag">essential</span>
+          <span class="quick-tag">appreciate</span>
+        </div>
+      </div>
+
+      <!-- Loading Spinner -->
+      <div id="dict-loading-state" class="state-container" style="display: none;">
+        <div class="spinner"></div>
+        <div class="state-title">Đang tra từ điển & dịch nghĩa...</div>
+        <div class="state-desc">Vui lòng đợi giây lát trong khi tải dữ liệu phát âm và ngữ cảnh.</div>
+      </div>
+
+      <!-- Welcome / Default State -->
+      <div id="dict-welcome-state" class="state-container">
+        <span class="state-icon">📖</span>
+        <div class="state-title">Chào mừng bạn đến với VocaMini!</div>
+        <div class="state-desc">
+          Gõ bất kỳ từ vựng tiếng Anh nào vào thanh tìm kiếm bên trên để xem phiên âm IPA, nghe phát âm giọng chuẩn, tra cứu nghĩa tiếng Việt và lưu trực tiếp vào sổ tay cá nhân.
+        </div>
+      </div>
+
+      <!-- Not Found / Error State -->
+      <div id="dict-notfound-state" class="state-container" style="display: none;">
+        <span class="state-icon">🔍❓</span>
+        <div class="state-title">Không tìm thấy từ <span id="notfound-word-label"></span></div>
+        <div class="state-desc">
+          Vui lòng kiểm tra lại chính tả của từ tiếng Anh. Hoặc nếu đây là từ viết tắt, từ lóng hoặc từ bạn muốn tự định nghĩa, bạn có thể tự thêm thủ công vào sổ tay!
+        </div>
+        <button id="btn-add-not-found-word" class="btn btn-secondary">
+          ➕ Tự thêm từ này vào sổ tay thủ công
+        </button>
+      </div>
+
+      <!-- Dictionary Result Card -->
+      <div id="dict-result-card" class="dict-result-card">
+        <div class="dict-header">
+          <div>
+            <div class="dict-word-title">
+              <span id="dict-display-word">Word</span>
+              <button class="speak-btn" id="btn-dict-speak" title="Nghe phát âm chuẩn">🔊</button>
+            </div>
+            <div class="dict-phonetic">
+              <span id="dict-display-phonetic">/wɜːd/</span>
+              <span id="dict-display-pos" class="badge" style="background: var(--primary-light); color: var(--primary); font-size: 0.85rem;">(noun)</span>
+            </div>
+          </div>
+          <button id="btn-save-to-notebook" class="btn btn-primary">
+            ➕ Lưu vào sổ tay
+          </button>
+        </div>
+
+        <!-- Vietnamese Meaning (Primary) -->
+        <div class="meaning-section">
+          <div class="section-label">🇻🇳 Nghĩa tiếng Việt</div>
+          <div class="meaning-vi-box">
+            <span id="dict-display-vi">Nghĩa tiếng Việt ở đây</span>
+          </div>
+        </div>
+
+        <!-- English Definition -->
+        <div class="meaning-section">
+          <div class="section-label">🇬🇧 Định nghĩa tiếng Anh</div>
+          <div class="meaning-en-item">
+            <span id="dict-display-en">English definition goes here</span>
+          </div>
+        </div>
+
+        <!-- Examples -->
+        <div class="meaning-section" id="dict-examples-container" style="display: none;">
+          <div class="section-label">💬 Câu ví dụ</div>
+          <ul id="dict-examples-list" class="examples-list"></ul>
+        </div>
+
+        <!-- Synonyms -->
+        <div class="meaning-section" id="dict-synonyms-container" style="display: none;">
+          <div class="section-label">🔗 Từ đồng nghĩa liên quan</div>
+          <div id="dict-synonyms-box" class="synonyms-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================
+         VIEW 2: SỔ TAY TỪ VỰNG (NOTEBOOKS)
+         ========================================================== -->
+    <section id="view-notebooks" class="view-section">
+      
+      <!-- List View of Notebooks -->
+      <div id="notebooks-list-view">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">📚 Sổ tay từ vựng của tôi</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Quản lý các bộ từ vựng theo chủ đề, ôn tập và lưu trữ.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-import-excel" class="btn btn-secondary">
+              📥 Import Excel
+            </button>
+            <button id="btn-create-notebook" class="btn btn-primary">
+              ➕ Tạo sổ tay mới
+            </button>
+          </div>
+        </div>
+
+        <div id="notebooks-grid-container" class="notebooks-grid"></div>
+
+        <div id="notebooks-empty-state" class="state-container" style="display: none;">
+          <span class="state-icon">📂</span>
+          <div class="state-title">Bạn chưa có sổ tay từ vựng nào</div>
+          <div class="state-desc">Hãy tạo sổ tay mới đầu tiên để phân loại và ghi nhớ từ vựng hiệu quả hơn!</div>
+        </div>
+      </div>
+
+      <!-- Detail View of a Notebook -->
+      <div id="notebook-detail-view" class="notebook-detail-view">
+        <button id="btn-back-to-notebooks" class="back-btn">
+          ← Quay lại danh sách sổ tay
+        </button>
+
+        <div class="section-header">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h1 id="nb-detail-title" class="section-title">Tên sổ tay</h1>
+              <span id="nb-detail-count-badge" class="badge" style="font-size: 0.9rem; background: var(--primary-light); color: var(--primary);">0 từ</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="btn-add-word-to-notebook" class="btn btn-secondary">
+              ➕ Thêm từ mới
+            </button>
+            <button id="btn-play-current-notebook" class="btn btn-primary">
+              🎮 Luyện tập sổ này
+            </button>
+          </div>
+        </div>
+
+        <!-- Search inside notebook -->
+        <div style="margin-bottom: 16px;">
+          <input 
+            type="text" 
+            id="notebook-word-search-input" 
+            class="form-input" 
+            placeholder="Lọc từ vựng trong sổ tay này..."
+          >
+        </div>
+
+        <!-- Bulk Action Bar -->
+        <div id="nb-bulk-actions-bar" class="bulk-actions-bar" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer;">
+              <input type="checkbox" id="bulk-select-all" class="word-checkbox">
+              <span>Chọn tất cả</span>
+            </label>
+            <span id="bulk-selected-count" class="badge">Đã chọn 0 từ</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-bulk-learn" class="btn btn-primary btn-sm">🎮 Học từ đã chọn</button>
+            <button id="btn-bulk-delete" class="btn btn-danger btn-sm">🗑️ Xoá</button>
+          </div>
+        </div>
+
+        <!-- Words List -->
+        <div id="nb-words-list-container" class="word-list"></div>
+
+        <div id="nb-words-empty-state" class="state-container" style="display: none;">
+          <span class="state-icon">📝</span>
+          <div class="state-title">Sổ tay này chưa có từ vựng nào</div>
+          <div class="state-desc">Hãy tra từ ở mục "Tra từ điển" hoặc bấm nút "+ Thêm từ mới" ở góc trên để bổ sung từ vào sổ.</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==========================================================
+         VIEW 3: HỌC TỪ VỰNG QUA GAME
+         ========================================================== -->
+    <section id="view-learn" class="view-section">
+      
+      <!-- Hub View: Select Deck & Game Mode -->
+      <div id="game-hub-view" class="game-hub-container">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">🎮 Học từ vựng qua Game</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Luyện tập phản xạ ghi nhớ thông qua trò chơi tương tác thú vị.
+            </p>
+          </div>
+        </div>
+
+        <!-- Deck Selector Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <label class="form-label" style="font-size: 1rem; margin-bottom: 12px;">1. Chọn nguồn từ vựng để ôn tập (chọn 1 hoặc nhiều):</label>
+          
+          <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: var(--bg-main); margin-bottom: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed var(--border-color);">
+              <input type="checkbox" id="game-check-all-notebooks" class="word-checkbox" checked>
+              <span>✅ Chọn tất cả các sổ tay</span>
+            </label>
+            <div id="game-notebooks-checkbox-list" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Dynamic checkboxes injected by JS -->
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; align-items: center;">
+            <span id="game-deck-count-badge" class="badge" style="background: var(--primary-light); color: var(--primary); font-size: 0.95rem; padding: 8px 14px;">
+              0 từ khả dụng
+            </span>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="card" style="margin-bottom: 24px;">
+          <label style="display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" id="game-auto-pronounce-cb" class="word-checkbox" checked>
+            <span>🔊 Tự động phát âm từ vựng trong lúc học (Auto-pronounce)</span>
+          </label>
+        </div>
+
+        <h2 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 12px;">2. Chọn chế độ trò chơi:</h2>
+
+        <!-- Game Modes Grid -->
+        <div class="game-modes-grid">
+          
+          <!-- Mode 1: Scramble -->
+          <div class="game-mode-card" id="mode-scramble-card">
+            <div>
+              <div class="game-icon-banner" style="background: #eff6ff; color: #2563eb;">
+                🔤
+              </div>
+              <div class="game-mode-title">Sắp xếp chữ cái</div>
+              <div class="game-mode-desc">
+                Nhìn nghĩa tiếng Việt, nghe phát âm và bấm chọn từng ký tự xáo trộn để ghép thành từ tiếng Anh đúng. Báo đỏ và rung ngay khi chọn sai!
+              </div>
+            </div>
+            <button class="btn btn-primary" style="width: 100%;">Bắt đầu chơi</button>
+          </div>
+
+          <!-- Mode 2: Quiz EN -> VI -->
+          <div class="game-mode-card" id="mode-quiz-en-vi-card">
+            <div>
+              <div class="game-icon-banner" style="background: #ecfdf5; color: #10b981;">
+                🇬🇧 ➔ 🇻🇳
+              </div>
+              <div class="game-mode-title">Trắc nghiệm: Anh → Việt</div>
+              <div class="game-mode-desc">
+                Hiển thị từ tiếng Anh kèm phát âm giọng chuẩn, lựa chọn 1 trong 4 đáp án nghĩa tiếng Việt tương ứng.
+              </div>
+            </div>
+            <button class="btn btn-success" style="width: 100%;">Bắt đầu trắc nghiệm</button>
+          </div>
+
+          <!-- Mode 3: Quiz VI -> EN -->
+          <div class="game-mode-card" id="mode-quiz-vi-en-card">
+            <div>
+              <div class="game-icon-banner" style="background: #fffbeb; color: #f59e0b;">
+                🇻🇳 ➔ 🇬🇧
+              </div>
+              <div class="game-mode-title">Trắc nghiệm: Việt → Anh</div>
+              <div class="game-mode-desc">
+                Hiển thị nghĩa tiếng Việt, lựa chọn từ tiếng Anh tương ứng trong 4 đáp án gây nhiễu để tăng phản xạ ghi nhớ từ vựng.
+              </div>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%; border-color: var(--warning); color: var(--text-main);">
+              Bắt đầu trắc nghiệm
+            </button>
+          </div>
+
+          <!-- Mode 4: Flashcards (Bonus) -->
+          <div class="game-mode-card" id="mode-flashcard-card">
+            <div>
+              <div class="game-icon-banner" style="background: #fdf2f8; color: #db2777;">
+                🃏
+              </div>
+              <div class="game-mode-title">Flashcard Lật Thẻ</div>
+              <div class="game-mode-desc">
+                Lật thẻ hai mặt để kiểm tra trí nhớ, tự đánh giá "Đã nhớ" hoặc "Chưa nhớ" để ôn tập có trọng tâm.
+              </div>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%;">Luyện Flashcard</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ========================================================
+           ACTIVE GAME 1: WORD SCRAMBLE SCREEN
+           ======================================================== -->
+      <div id="game-screen-scramble" class="active-game-screen">
+        <div class="game-top-bar">
+          <button class="btn btn-secondary btn-sm btn-quit-game">✕ Thoát</button>
+          <div class="game-progress-bar-container">
+            <div id="scramble-progress-fill" class="game-progress-bar-fill"></div>
+          </div>
+          <span id="scramble-progress-text" class="game-stat-badge">1/10</span>
+          <span id="scramble-score-text" class="game-stat-badge" style="color: var(--primary);">Điểm: 0</span>
+        </div>
+
+        <div class="scramble-box">
+          <!-- Clue / Meaning Card -->
+          <div class="scramble-clue-card">
+            <div id="scramble-clue-vi" class="scramble-clue-vi">nghĩa tiếng việt</div>
+            <div id="scramble-clue-pos" class="scramble-clue-pos">(từ loại)</div>
+            <div style="margin-top: 10px;">
+              <button class="btn-icon" id="btn-scramble-speak" title="Nghe lại phát âm">🔊</button>
+            </div>
+          </div>
+
+          <!-- Target Placed Slots -->
+          <div id="scramble-slots-container" class="scramble-slots-container"></div>
+
+          <!-- Scrambled Letters Pool -->
+          <div id="scramble-letters-pool" class="scramble-letters-pool"></div>
+
+          <!-- Controls -->
+          <div style="margin-top: 18px; display: flex; justify-content: center; gap: 12px;">
+            <button id="btn-scramble-skip" class="btn btn-secondary btn-sm">
+              💡 Bỏ qua / Xem đáp án
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           ACTIVE GAME 2: QUIZ SCREEN (Multiple Choice)
+           ======================================================== -->
+      <div id="game-screen-quiz" class="active-game-screen">
+        <div class="game-top-bar">
+          <button class="btn btn-secondary btn-sm btn-quit-game">✕ Thoát</button>
+          <div class="game-progress-bar-container">
+            <div id="quiz-progress-fill" class="game-progress-bar-fill"></div>
+          </div>
+          <span id="quiz-progress-text" class="game-stat-badge">1/10</span>
+          <span id="quiz-score-text" class="game-stat-badge" style="color: var(--primary);">Điểm: 0</span>
+        </div>
+
+        <div class="quiz-card">
+          <!-- Question Prompt -->
+          <div class="quiz-prompt-box">
+            <div id="quiz-prompt-label" class="quiz-prompt-label">CHỌN NGHĨA ĐÚNG:</div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+              <div id="quiz-prompt-text" class="quiz-prompt-text">capacity</div>
+              <button class="btn-icon" id="btn-quiz-speak" title="Nghe phát âm">🔊</button>
+            </div>
+            <div id="quiz-prompt-sub" style="color: var(--text-muted); font-size: 0.95rem;">/kəˈpæsəti/ (noun)</div>
+          </div>
+
+          <!-- 4 Options Grid -->
+          <div id="quiz-options-grid" class="quiz-options-grid"></div>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           ACTIVE GAME 3: FLASHCARDS SCREEN
+           ======================================================== -->
+      <div id="game-screen-flashcard" class="active-game-screen">
+        <div class="game-top-bar">
+          <button class="btn btn-secondary btn-sm btn-quit-game">✕ Thoát</button>
+          <div class="game-progress-bar-container">
+            <div id="flashcard-progress-fill" class="game-progress-bar-fill"></div>
+          </div>
+          <span id="flashcard-progress-text" class="game-stat-badge">1/10</span>
+        </div>
+
+        <div class="flashcard-wrapper">
+          <div id="flashcard-inner" class="flashcard-inner">
+            <!-- Front Face -->
+            <div class="flashcard-face">
+              <div style="font-size: 0.8rem; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">MẶT TRƯỚC (BẤM ĐỂ LẬT)</div>
+              <div id="flashcard-front-word" style="font-size: 2.2rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px;">Word</div>
+              <div id="flashcard-front-phonetic" style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 14px;">/wɜːd/</div>
+              <button class="btn-icon" id="btn-flashcard-speak" title="Nghe phát âm">🔊</button>
+            </div>
+            <!-- Back Face -->
+            <div class="flashcard-face flashcard-back">
+              <div style="font-size: 0.8rem; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">MẶT SAU</div>
+              <div id="flashcard-back-vi" style="font-size: 1.4rem; font-weight: 700; color: var(--text-main); margin-bottom: 10px;">Nghĩa tiếng Việt</div>
+              <div id="flashcard-back-en" style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 12px;">Định nghĩa tiếng Anh</div>
+              <div id="flashcard-back-example" style="font-size: 0.85rem; font-style: italic; color: var(--text-muted); background: var(--bg-muted); padding: 8px 12px; border-radius: var(--radius-sm);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evaluation Controls -->
+        <div style="display: flex; justify-content: center; gap: 16px;">
+          <button id="btn-flashcard-again" class="btn btn-danger" style="flex: 1; max-width: 180px;">
+            ✕ Chưa nhớ
+          </button>
+          <button id="btn-flashcard-good" class="btn btn-success" style="flex: 1; max-width: 180px;">
+            ✓ Đã nhớ
+          </button>
+        </div>
+      </div>
+
+      <!-- ========================================================
+           GAME SUMMARY SCREEN
+           ======================================================== -->
+      <div id="game-screen-summary" class="active-game-screen">
+        <div class="summary-screen">
+          <h2 id="summary-game-title" style="font-size: 1.6rem; font-weight: 800; margin-bottom: 16px;">Kết quả phiên học</h2>
+
+          <div class="score-circle" id="summary-score-circle">
+            <div class="score-circle-inner">
+              <span id="summary-score-percent">100%</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">CHÍNH XÁC</span>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: center; gap: 24px; margin-bottom: 20px;">
+            <div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--success);" id="summary-correct-count">10</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Số câu đúng</div>
+            </div>
+            <div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--danger);" id="summary-wrong-count">0</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Số câu sai</div>
+            </div>
+          </div>
+
+          <!-- List of words gotten wrong -->
+          <div id="summary-wrong-list-container" style="display: none;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; color: var(--danger);">
+              ⚠️ Các từ vựng cần ôn tập lại:
+            </h3>
+            <div id="summary-wrong-list" class="wrong-words-list"></div>
+          </div>
+
+          <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 24px;">
+            <button id="btn-summary-replay-wrong" class="btn btn-danger" style="display: none;">
+              🔄 Ôn lại từ sai
+            </button>
+            <button id="btn-summary-replay-all" class="btn btn-primary">
+              🔁 Chơi lại từ đầu
+            </button>
+            <button id="btn-summary-back-hub" class="btn btn-secondary">
+              ← Về menu Game
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==========================================================
+         VIEW 4: THỐNG KÊ & CÀI ĐẶT
+         ========================================================== -->
+    <section id="view-stats" class="view-section">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">📊 Thống kê tiến trình học</h1>
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+            Theo dõi sự tiến bộ và sao lưu dữ liệu từ vựng cá nhân.
+          </p>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="notebooks-grid" style="margin-bottom: 24px;">
+        <div class="card" style="margin-bottom: 0;">
+          <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">TỔNG TỪ ĐÃ LƯU</div>
+          <div id="stat-total-words" style="font-size: 2.2rem; font-weight: 800; color: var(--primary); margin-top: 6px;">0</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">SỔ TAY ĐÃ TẠO</div>
+          <div id="stat-total-notebooks" style="font-size: 2.2rem; font-weight: 800; color: var(--success); margin-top: 6px;">0</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">LƯỢT LUYỆN TẬP</div>
+          <div id="stat-total-reviews" style="font-size: 2.2rem; font-weight: 800; color: #8b5cf6; margin-top: 6px;">0</div>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+          <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">TỈ LỆ CHÍNH XÁC</div>
+          <div id="stat-accuracy-rate" style="font-size: 2.2rem; font-weight: 800; color: var(--warning); margin-top: 6px;">0%</div>
+        </div>
+      </div>
+
+      <!-- Backup & Restore -->
+      <div class="card">
+        <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 12px;">💾 Quản lý dữ liệu LocalStorage</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 18px;">
+          Toàn bộ từ vựng và tiến trình học được lưu trên trình duyệt của bạn. Bạn có thể xuất file sao lưu dạng JSON để lưu trữ hoặc chuyển sang thiết bị khác.
+        </p>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button id="btn-export-data" class="btn btn-secondary">
+            📤 Xuất dữ liệu (Backup JSON)
+          </button>
+          
+          <label class="btn btn-secondary" style="cursor: pointer;">
+            📥 Nhập dữ liệu (Import JSON)
+            <input type="file" id="input-import-file" accept=".json" style="display: none;">
+          </label>
+
+          <button id="btn-sync-qr" class="btn btn-primary">
+            📱 Đồng bộ QR Code
+          </button>
+
+          <button id="btn-reset-default-data" class="btn btn-danger" style="margin-left: auto;">
+            🔄 Khôi phục dữ liệu mẫu ban đầu
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <button class="bottom-tab active" data-view="view-dict">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+      </svg>
+      <span>Tra từ</span>
+    </button>
+    <button class="bottom-tab" data-view="view-notebooks">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+      </svg>
+      <span>Sổ tay</span>
+    </button>
+    <button class="bottom-tab" data-view="view-learn">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span>Học game</span>
+    </button>
+    <button class="bottom-tab" data-view="view-stats">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+      </svg>
+      <span>Thống kê</span>
+    </button>
+  </nav>
+
+  <!-- ==========================================================
+       MODAL 1: TẠO SỔ TAY MỚI
+       ========================================================== -->
+  <div id="modal-create-notebook" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">Tạo sổ tay từ vựng mới</div>
+        <button class="btn-icon btn-close-modal">✕</button>
+      </div>
+      <form id="form-create-notebook">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="create-nb-name">Tên sổ tay:</label>
+            <input 
+              type="text" 
+              id="create-nb-name" 
+              class="form-input" 
+              placeholder="Vd: Từ vựng IELTS, Giao tiếp công sở..." 
+              required
+            >
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chọn màu đại diện:</label>
+            <div class="color-picker-palette">
+              <div class="color-option selected" data-color="#2563eb" style="background-color: #2563eb;"></div>
+              <div class="color-option" data-color="#10b981" style="background-color: #10b981;"></div>
+              <div class="color-option" data-color="#f59e0b" style="background-color: #f59e0b;"></div>
+              <div class="color-option" data-color="#ef4444" style="background-color: #ef4444;"></div>
+              <div class="color-option" data-color="#8b5cf6" style="background-color: #8b5cf6;"></div>
+              <div class="color-option" data-color="#ec4899" style="background-color: #ec4899;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Tạo sổ tay</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 2: LƯU TỪ VÀO SỔ TAY
+       ========================================================== -->
+  <div id="modal-save-word" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">Lưu từ vào sổ tay</div>
+        <button class="btn-icon btn-close-modal">✕</button>
+      </div>
+      <form id="form-save-word">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="save-word-notebook-select">Chọn sổ tay đích:</label>
+            <select id="save-word-notebook-select" class="form-select"></select>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="save-word-new-notebook-name">Hoặc tạo nhanh sổ tay mới:</label>
+            <input 
+              type="text" 
+              id="save-word-new-notebook-name" 
+              class="form-input" 
+              placeholder="Nhập tên sổ tay mới nếu muốn..."
+            >
+          </div>
+
+          <div style="border-top: 1px dashed var(--border-color); margin: 16px 0; padding-top: 14px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 10px;">THÔNG TIN TỪ VỰNG:</div>
+            
+            <div class="form-group">
+              <label class="form-label">Từ tiếng Anh:</label>
+              <input type="text" id="save-word-text" class="form-input" required>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div class="form-group">
+                <label class="form-label">Phiên âm IPA:</label>
+                <input type="text" id="save-word-phonetic" class="form-input" placeholder="/.../">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Từ loại:</label>
+                <select id="save-word-pos" class="form-select">
+                  <option value="noun">Danh từ (n)</option>
+                  <option value="verb">Động từ (v)</option>
+                  <option value="adjective">Tính từ (adj)</option>
+                  <option value="adverb">Trạng từ (adv)</option>
+                  <option value="preposition">Giới từ</option>
+                  <option value="idiom">Thành ngữ</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Nghĩa tiếng Việt:</label>
+              <input type="text" id="save-word-meaning-vi" class="form-input" placeholder="Vd: sức chứa, năng lực" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Định nghĩa tiếng Anh (tùy chọn):</label>
+              <input type="text" id="save-word-meaning-en" class="form-input" placeholder="English definition">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Câu ví dụ (tùy chọn):</label>
+              <textarea id="save-word-example" class="form-textarea" rows="2" placeholder="Example sentence..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Xác nhận lưu từ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 3: CHỈNH SỬA TỪ VỰNG
+       ========================================================== -->
+  <div id="modal-edit-word" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">Chỉnh sửa từ vựng</div>
+        <button class="btn-icon btn-close-modal">✕</button>
+      </div>
+      <form id="form-edit-word">
+        <input type="hidden" id="edit-word-notebook-id">
+        <input type="hidden" id="edit-word-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Từ tiếng Anh:</label>
+            <input type="text" id="edit-word-text" class="form-input" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label">Phiên âm IPA:</label>
+              <input type="text" id="edit-word-phonetic" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Từ loại:</label>
+              <select id="edit-word-pos" class="form-select">
+                <option value="noun">Danh từ (n)</option>
+                <option value="verb">Động từ (v)</option>
+                <option value="adjective">Tính từ (adj)</option>
+                <option value="adverb">Trạng từ (adv)</option>
+                <option value="preposition">Giới từ</option>
+                <option value="idiom">Thành ngữ</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nghĩa tiếng Việt:</label>
+            <input type="text" id="edit-word-meaning-vi" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Định nghĩa tiếng Anh:</label>
+            <input type="text" id="edit-word-meaning-en" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Câu ví dụ (English):</label>
+            <input type="text" id="edit-word-example-en" class="form-input" placeholder="English sentence">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dịch câu ví dụ (Tiếng Việt):</label>
+            <input type="text" id="edit-word-example-vi" class="form-input" placeholder="Dịch nghĩa câu ví dụ">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <!-- ==========================================================
+       MODAL 4: IMPORT EXCEL
+       ========================================================== -->
+  <div id="modal-import-excel" class="modal-overlay">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">Import từ vựng từ Excel</div>
+        <button class="btn-icon btn-close-modal">✕</button>
+      </div>
+      <form id="form-import-excel">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="import-excel-file">Chọn file Excel (.xlsx, .xls):</label>
+            <input 
+              type="file" 
+              id="import-excel-file" 
+              class="form-input" 
+              accept=".xlsx, .xls"
+              required
+            >
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">File cần có 4 cột cơ bản: Từ tiếng Anh, Nghĩa tiếng Việt, Phiên âm, Ví dụ.</p>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="import-excel-notebook-select">Thêm vào sổ tay hiện có:</label>
+            <select id="import-excel-notebook-select" class="form-select">
+              <option value="">-- Tạo sổ tay mới --</option>
+            </select>
+          </div>
+          
+          <div class="form-group" id="import-excel-new-notebook-group">
+            <label class="form-label" for="import-excel-new-notebook-name">Tên sổ tay mới:</label>
+            <input 
+              type="text" 
+              id="import-excel-new-notebook-name" 
+              class="form-input" 
+              placeholder="Nhập tên sổ tay mới..."
+            >
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Tiến hành Import</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 5: QR CODE SYNC
+       ========================================================== -->
+  <div id="modal-sync-qr" class="modal-overlay">
+    <div class="modal-container" style="text-align: center;">
+      <div class="modal-header">
+        <div class="modal-title">Quét mã QR để đồng bộ</div>
+        <button class="btn-icon btn-close-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 16px;">
+          Dùng camera điện thoại hoặc trình quét mã QR để chuyển toàn bộ sổ tay sang máy khác. Link sẽ tự động hết hạn sau 1 lần tải.
+        </p>
+        <div id="qr-loading" style="display: none;">
+           <div class="spinner" style="margin: 20px auto;"></div>
+           <p style="font-weight: 500;">Đang tạo mã QR bảo mật...</p>
+        </div>
+        <div id="qr-code-container" style="display: flex; justify-content: center; padding: 20px; background: white; border-radius: 8px; margin: 0 auto; width: fit-content;">
+           <!-- QR Code goes here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External Library for Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- External Library for QR Code -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <!-- JavaScript Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
