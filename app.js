@@ -2539,52 +2539,30 @@
 
       const btnSyncQr = document.getElementById('btn-sync-qr');
       if (btnSyncQr) {
-        btnSyncQr.onclick = async () => {
+        btnSyncQr.onclick = () => {
           AppUI.openModal('modal-sync-qr');
-          const qrContainer = document.getElementById('qr-code-container');
-          const qrLoading = document.getElementById('qr-loading');
-          
-          qrContainer.innerHTML = '';
-          qrLoading.style.display = 'block';
-          qrContainer.style.display = 'none';
-
-          const data = StorageManager.getData();
-          const jsonStr = JSON.stringify(data);
-          const file = new Blob([jsonStr], {type: 'application/json'});
-          
-          const formData = new FormData();
-          formData.append('file', file, 'vocamini_sync.json');
-
-          try {
-            const res = await fetch('https://file.io', {
-              method: 'POST',
-              body: formData
-            });
-            const result = await res.json();
-            
-            if (result.success) {
-              const downloadUrl = result.link;
-              const syncUrl = window.location.origin + window.location.pathname + '?import_url=' + encodeURIComponent(downloadUrl);
-              
-              qrLoading.style.display = 'none';
-              qrContainer.style.display = 'flex';
-              
-              new QRCode(qrContainer, {
-                text: syncUrl,
-                width: 256,
-                height: 256,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-              });
-            } else {
-              throw new Error('Upload failed');
-            }
-          } catch (err) {
-            qrLoading.style.display = 'none';
-            AppUI.showToast('Lỗi tạo mã QR. Vui lòng kiểm tra mạng!', 'danger');
-          }
+          this.renderSyncQr();
         };
+      }
+
+      const btnCopyQrUrl = document.getElementById('btn-copy-qr-url');
+      if (btnCopyQrUrl) {
+        btnCopyQrUrl.onclick = () => {
+          let currentUrl = window.location.origin + window.location.pathname;
+          if (currentUrl.startsWith('null') || currentUrl.startsWith('file://')) {
+            currentUrl = window.location.href;
+          }
+          navigator.clipboard.writeText(currentUrl).then(() => {
+            AppUI.showToast('Đã sao chép link website!', 'success');
+          }).catch(() => {
+            AppUI.showToast('Không thể sao chép tự động.', 'warning');
+          });
+        };
+      }
+
+      const btnModalExportJson = document.getElementById('btn-modal-export-json');
+      if (btnModalExportJson) {
+        btnModalExportJson.onclick = () => this.exportData();
       }
 
       const btnReset = document.getElementById('btn-reset-default-data');
@@ -2597,6 +2575,40 @@
             AppUI.showToast('Đã khôi phục dữ liệu mẫu thành công!', 'success');
           }
         };
+      }
+    }
+
+    static renderSyncQr() {
+      const qrContainer = document.getElementById('qr-code-container');
+      const qrUrlText = document.getElementById('qr-share-url-text');
+      if (!qrContainer) return;
+
+      qrContainer.innerHTML = '';
+
+      let currentUrl = window.location.origin + window.location.pathname;
+      if (currentUrl.startsWith('null') || currentUrl.startsWith('file://')) {
+        currentUrl = window.location.href;
+      }
+
+      if (qrUrlText) {
+        qrUrlText.textContent = currentUrl;
+      }
+
+      if (typeof QRCode !== 'undefined') {
+        try {
+          new QRCode(qrContainer, {
+            text: currentUrl,
+            width: 200,
+            height: 200,
+            colorDark: "#0f172a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        } catch (err) {
+          qrContainer.innerHTML = `<p style="color:var(--text-muted);font-size:0.9rem;">Lỗi tạo mã QR: ${err.message}</p>`;
+        }
+      } else {
+        qrContainer.innerHTML = `<p style="color:var(--text-muted);font-size:0.9rem;">Thư viện mã QR đang được tải. Bạn có thể mở link:<br><a href="${currentUrl}" target="_blank" style="color:var(--primary);word-break:break-all;">${currentUrl}</a></p>`;
       }
     }
 
