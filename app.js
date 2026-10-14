@@ -528,31 +528,112 @@
       }
     }
 
-    static speak(text, rate = 0.9) {
-      if (!('speechSynthesis' in window)) {
-        AppUI.showToast('Trình duyệt không hỗ trợ phát âm (Web Speech)', 'danger');
+    static currentAudio = null;
+
+    /**
+     * Hệ thống phát âm đa tầng (Multi-tier Audio Engine):
+     * 1. Audio gốc từ API từ điển (audioUrl nếu có)
+     * 2. Audio giọng đọc chuẩn bản xứ chất lượng cao (Youdao Oxford/Webster stream)
+     * 3. Audio Google TTS trực tuyến
+     * 4. Web Speech API (offline fallback)
+     */
+    static speak(text, rate = 0.9, customAudioUrl = null) {
+      if (!text || typeof text !== 'string') return;
+      const cleanWord = text.trim();
+      if (!cleanWord) return;
+
+      // Dừng audio đang phát nếu có
+      if (this.currentAudio) {
+        try {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+        } catch (e) {}
+        this.currentAudio = null;
+      }
+
+      // Tầng 1: Nếu có audioUrl từ từ điển API
+      if (customAudioUrl && typeof customAudioUrl === 'string' && customAudioUrl.startsWith('http')) {
+        this.playHtmlAudio(customAudioUrl, () => {
+          this.playOnlineTts(cleanWord, rate);
+        });
         return;
       }
+
+      // Tầng 2 & 3 & 4
+      this.playOnlineTts(cleanWord, rate);
+    }
+
+    static playOnlineTts(word, rate) {
+      // Type 2 = US English (giọng Mỹ chuẩn chất lượng cao)
+      const primaryUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`;
+      const backupUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`;
+
+      this.playHtmlAudio(primaryUrl, () => {
+        this.playHtmlAudio(backupUrl, () => {
+          this.playWebSpeech(word, rate);
+        });
+      });
+    }
+
+    static playHtmlAudio(url, onError) {
       try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        utterance.rate = rate;
+        const audio = new Audio(url);
+        this.currentAudio = audio;
 
-        const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel')));
-        if (englishVoice) {
-          utterance.voice = englishVoice;
+        let handled = false;
+        const triggerError = () => {
+          if (!handled) {
+            handled = true;
+            if (onError) onError();
+          }
+        };
+
+        audio.onerror = triggerError;
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            triggerError();
+          });
         }
+      } catch (err) {
+        if (onError) onError();
+      }
+    }
 
-        window.speechSynthesis.speak(utterance);
+    static playWebSpeech(text, rate = 0.9) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        window.speechSynthesis.cancel();
+
+        setTimeout(() => {
+          try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = rate;
+
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+              const englishVoice = voices.find(v => v.lang && (v.lang === 'en-US' || v.lang.startsWith('en')) && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel')));
+              if (englishVoice) {
+                utterance.voice = englishVoice;
+              }
+            }
+            window.speechSynthesis.speak(utterance);
+          } catch (e) {
+            console.warn('SpeechSynthesis error:', e);
+          }
+        }, 30);
       } catch (e) {
-        console.warn('SpeechSynthesis error:', e);
+        console.warn('SpeechSynthesis resume error:', e);
       }
     }
   }
 
-  // Pre-load voices
+  // Pre-load voices for SpeechSynthesis
   if ('speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = () => {
       window.speechSynthesis.getVoices();
@@ -763,26 +844,24 @@
     static autoPronounce = true;
 
     static async init() {
-      // Check for QR sync import
+      // Check for sync code in URL
       const urlParams = new URLSearchParams(window.location.search);
-      const importUrl = urlParams.get('import_url');
-      if (importUrl) {
+      const syncCode = urlParams.get('sync_code');
+      if (syncCode) {
          try {
-            AppUI.showToast('Đang tải dữ liệu đồng bộ...', 'info');
-            const res = await fetch(importUrl);
-            const data = await res.json();
+            const jsonStr = decodeURIComponent(Array.prototype.map.call(atob(syncCode), (c) => {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            const data = JSON.parse(jsonStr);
             if (data && Array.isArray(data.notebooks)) {
-              if (confirm('Phát hiện dữ liệu đồng bộ từ máy khác. Bạn có muốn nhập vào không? (Dữ liệu hiện tại sẽ bị thay thế)')) {
+              if (confirm(`Phát hiện ${data.notebooks.length} sổ tay từ liên kết chia sẻ. Bạn có muốn nạp vào máy không?`)) {
                  StorageManager.saveData(data);
                  AppUI.showToast('Đã đồng bộ dữ liệu thành công!', 'success');
               }
-            } else {
-               AppUI.showToast('Dữ liệu đồng bộ không hợp lệ!', 'danger');
             }
          } catch (err) {
-            AppUI.showToast('Link đồng bộ đã hết hạn hoặc bị lỗi mạng.', 'danger');
+            console.error('Lỗi giải mã sync_code URL', err);
          }
-         // Xóa params trên URL
          window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -866,6 +945,13 @@
         GameHubController.renderHub();
       } else if (viewId === 'view-stats') {
         StatsController.renderStats();
+      } else if (viewId === 'view-reading') {
+        // Ensure input screen is visible (in case user switched away mid-session)
+        const inputScreen = document.getElementById('reading-input-screen');
+        const activeScreen = document.getElementById('reading-active-screen');
+        if (inputScreen && inputScreen.style.display === 'none' && activeScreen && activeScreen.style.display === 'none') {
+          inputScreen.style.display = 'block';
+        }
       }
     }
 
@@ -1020,7 +1106,7 @@
       if (speakBtn) {
         speakBtn.addEventListener('click', () => {
           if (this.currentSearchResult) {
-            SoundService.speak(this.currentSearchResult.word);
+            SoundService.speak(this.currentSearchResult.word, 0.9, this.currentSearchResult.audioUrl);
           }
         });
       }
@@ -1670,10 +1756,14 @@
           </div>
         `;
 
-        // Pronounce
+        // Pronounce when clicking speaker or anywhere on word info
         item.querySelector('.btn-speak-word').addEventListener('click', (e) => {
           e.stopPropagation();
-          SoundService.speak(w.word);
+          SoundService.speak(w.word, 0.9, w.audioUrl);
+        });
+
+        item.querySelector('.word-main-info').addEventListener('click', () => {
+          SoundService.speak(w.word, 0.9, w.audioUrl);
         });
 
         // Edit
@@ -1753,6 +1843,18 @@
   // =========================================================================
   // 7. VOCABULARY GAME ENGINES (Scramble, Quiz, Flashcards)
   // =========================================================================
+
+  // Thuật toán xáo trộn chuẩn Fisher-Yates (Knuth) đảm bảo 100% ngẫu nhiên tuyệt đối
+  function shuffleArray(array) {
+    if (!Array.isArray(array) || array.length <= 1) return [...(array || [])];
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
   class GameHubController {
     static selectedDeckId = 'all';
     static currentSessionWords = [];
@@ -1910,8 +2012,8 @@
 
       document.getElementById('game-hub-view').style.display = 'none';
 
-      // Shuffle words for study session
-      const shuffled = [...words].sort(() => Math.random() - 0.5);
+      // Shuffle words for study session with Fisher-Yates
+      const shuffled = shuffleArray(words);
 
       if (mode === 'scramble') {
         WordScrambleEngine.start(shuffled);
@@ -1939,7 +2041,7 @@
     static score = 0;
 
     static start(wordsList) {
-      this.words = wordsList;
+      this.words = shuffleArray(wordsList);
       this.currentIndex = 0;
       this.mistakes = [];
       this.score = 0;
@@ -1975,12 +2077,10 @@
 
       // Speaker button
       const speakBtn = document.getElementById('btn-scramble-speak');
-      speakBtn.onclick = () => SoundService.speak(this.currentWordObj.word);
+      speakBtn.onclick = () => SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
 
-      // Pronounce clue right away if autoPronounce is enabled
-      if (AppController.autoPronounce) {
-        SoundService.speak(this.currentWordObj.word);
-      }
+      // Tự động phát âm từ vựng ngay khi hiện từ
+      SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
 
       // Scramble letters
       const lettersArr = this.targetWord.split('').map((char, originalIndex) => ({
@@ -1990,7 +2090,7 @@
       }));
 
       // Ensure shuffle is different from target
-      let shuffled = [...lettersArr].sort(() => Math.random() - 0.5);
+      let shuffled = shuffleArray(lettersArr);
       if (shuffled.map(l => l.char).join('') === this.targetWord && this.targetWord.length > 2) {
         shuffled.reverse();
       }
@@ -2156,7 +2256,7 @@
     static canAnswer = true;
 
     static start(wordsList, mode = 'EN_TO_VI') {
-      this.words = wordsList;
+      this.words = shuffleArray(wordsList);
       this.mode = mode;
       this.currentIndex = 0;
       this.mistakes = [];
@@ -2193,10 +2293,9 @@
         promptText.textContent = this.currentWordObj.word;
         promptSub.textContent = `${this.currentWordObj.phonetic || ''} (${this.currentWordObj.partOfSpeech || 'từ'})`;
         speakBtn.style.display = 'inline-flex';
-        speakBtn.onclick = () => SoundService.speak(this.currentWordObj.word);
-        if (AppController.autoPronounce) {
-          SoundService.speak(this.currentWordObj.word);
-        }
+        speakBtn.onclick = () => SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
+        // Tự động phát âm câu hỏi tiếng Anh
+        SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
       } else {
         promptLabel.textContent = 'CHỌN TỪ TIẾNG ANH ĐÚNG:';
         promptText.textContent = this.currentWordObj.meaningVi || this.currentWordObj.word;
@@ -2218,7 +2317,7 @@
       const seen = new Set([correctText.toLowerCase()]);
 
       // Shuffle pool
-      const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+      const shuffledPool = shuffleArray(pool);
 
       for (let item of shuffledPool) {
         if (options.length >= 4) break;
@@ -2241,7 +2340,7 @@
       }
 
       // Shuffle the 4 options
-      return options.sort(() => Math.random() - 0.5);
+      return shuffleArray(options);
     }
 
     static renderOptions(options) {
@@ -2325,7 +2424,7 @@
     static needReview = [];
 
     static start(wordsList) {
-      this.words = wordsList;
+      this.words = shuffleArray(wordsList);
       this.currentIndex = 0;
       this.mastered = [];
       this.needReview = [];
@@ -2366,7 +2465,7 @@
       document.getElementById('flashcard-front-phonetic').textContent = this.currentWordObj.phonetic || '';
       document.getElementById('btn-flashcard-speak').onclick = (e) => {
         e.stopPropagation();
-        SoundService.speak(this.currentWordObj.word);
+        SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
       };
 
       // Back
@@ -2380,13 +2479,17 @@
         exEl.style.display = 'none';
       }
 
-      SoundService.speak(this.currentWordObj.word);
+      // Tự động phát âm khi hiện thẻ
+      SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
     }
 
     static flip() {
       const cardInner = document.getElementById('flashcard-inner');
       this.isFlipped = !this.isFlipped;
       cardInner.classList.toggle('is-flipped', this.isFlipped);
+      if (this.currentWordObj) {
+        SoundService.speak(this.currentWordObj.word, 0.9, this.currentWordObj.audioUrl);
+      }
     }
 
     static recordResult(isMastered) {
@@ -2465,7 +2568,7 @@
             <button class="btn-icon btn-speak-sm" title="Phát âm">🔊</button>
           `;
 
-          item.querySelector('.btn-speak-sm').onclick = () => SoundService.speak(w.word);
+          item.querySelector('.btn-speak-sm').onclick = () => SoundService.speak(w.word, 0.9, w.audioUrl);
           wrongList.appendChild(item);
         });
 
@@ -2537,32 +2640,35 @@
         inputImport.onchange = (e) => this.importData(e);
       }
 
-      const btnSyncQr = document.getElementById('btn-sync-qr');
-      if (btnSyncQr) {
-        btnSyncQr.onclick = () => {
-          AppUI.openModal('modal-sync-qr');
-          this.renderSyncQr();
+      const btnSyncCode = document.getElementById('btn-sync-code');
+      if (btnSyncCode) {
+        btnSyncCode.onclick = () => {
+          AppUI.openModal('modal-sync-code');
+          this.initSyncCodeModal();
         };
       }
 
-      const btnCopyQrUrl = document.getElementById('btn-copy-qr-url');
-      if (btnCopyQrUrl) {
-        btnCopyQrUrl.onclick = () => {
-          let currentUrl = window.location.origin + window.location.pathname;
-          if (currentUrl.startsWith('null') || currentUrl.startsWith('file://')) {
-            currentUrl = window.location.href;
+      const btnCopySyncCode = document.getElementById('btn-copy-sync-code');
+      if (btnCopySyncCode) {
+        btnCopySyncCode.onclick = () => {
+          const codeInput = document.getElementById('sync-code-output');
+          if (codeInput && codeInput.value) {
+            navigator.clipboard.writeText(codeInput.value).then(() => {
+              AppUI.showToast('Đã sao chép mã đồng bộ!', 'success');
+            }).catch(() => {
+              codeInput.select();
+              document.execCommand('copy');
+              AppUI.showToast('Đã sao chép mã đồng bộ!', 'success');
+            });
           }
-          navigator.clipboard.writeText(currentUrl).then(() => {
-            AppUI.showToast('Đã sao chép link website!', 'success');
-          }).catch(() => {
-            AppUI.showToast('Không thể sao chép tự động.', 'warning');
-          });
         };
       }
 
-      const btnModalExportJson = document.getElementById('btn-modal-export-json');
-      if (btnModalExportJson) {
-        btnModalExportJson.onclick = () => this.exportData();
+      const btnApplySyncCode = document.getElementById('btn-apply-sync-code');
+      if (btnApplySyncCode) {
+        btnApplySyncCode.onclick = () => {
+          this.applySyncCode();
+        };
       }
 
       const btnReset = document.getElementById('btn-reset-default-data');
@@ -2578,37 +2684,60 @@
       }
     }
 
-    static renderSyncQr() {
-      const qrContainer = document.getElementById('qr-code-container');
-      const qrUrlText = document.getElementById('qr-share-url-text');
-      if (!qrContainer) return;
-
-      qrContainer.innerHTML = '';
-
-      let currentUrl = window.location.origin + window.location.pathname;
-      if (currentUrl.startsWith('null') || currentUrl.startsWith('file://')) {
-        currentUrl = window.location.href;
-      }
-
-      if (qrUrlText) {
-        qrUrlText.textContent = currentUrl;
-      }
-
-      if (typeof QRCode !== 'undefined') {
+    static initSyncCodeModal() {
+      const output = document.getElementById('sync-code-output');
+      const input = document.getElementById('sync-code-input');
+      if (input) input.value = '';
+      if (output) {
         try {
-          new QRCode(qrContainer, {
-            text: currentUrl,
-            width: 200,
-            height: 200,
-            colorDark: "#0f172a",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.M
-          });
+          const data = StorageManager.getData();
+          const jsonStr = JSON.stringify(data);
+          // Mã hóa an toàn UTF-8 sang Base64
+          const encoded = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+            return String.fromCharCode('0x' + p1);
+          }));
+          output.value = encoded;
         } catch (err) {
-          qrContainer.innerHTML = `<p style="color:var(--text-muted);font-size:0.9rem;">Lỗi tạo mã QR: ${err.message}</p>`;
+          console.error('Lỗi mã hóa sync code', err);
+          output.value = '';
+          AppUI.showToast('Không thể tạo mã đồng bộ!', 'danger');
         }
-      } else {
-        qrContainer.innerHTML = `<p style="color:var(--text-muted);font-size:0.9rem;">Thư viện mã QR đang được tải. Bạn có thể mở link:<br><a href="${currentUrl}" target="_blank" style="color:var(--primary);word-break:break-all;">${currentUrl}</a></p>`;
+      }
+    }
+
+    static applySyncCode() {
+      const input = document.getElementById('sync-code-input');
+      if (!input || !input.value.trim()) {
+        AppUI.showToast('Vui lòng dán mã đồng bộ vào ô trước!', 'warning');
+        return;
+      }
+
+      try {
+        const rawCode = input.value.trim();
+        // Giải mã an toàn Base64 sang UTF-8
+        const jsonStr = decodeURIComponent(Array.prototype.map.call(atob(rawCode), (c) => {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const parsed = JSON.parse(jsonStr);
+        if (parsed && Array.isArray(parsed.notebooks)) {
+          let totalWords = 0;
+          parsed.notebooks.forEach(nb => {
+            if (Array.isArray(nb.words)) totalWords += nb.words.length;
+          });
+          if (confirm(`Tìm thấy ${parsed.notebooks.length} sổ tay (${totalWords} từ vựng). Bạn có muốn nạp dữ liệu này vào máy không? (Dữ liệu cũ sẽ được cập nhật)`)) {
+            StorageManager.saveData(parsed);
+            NotebookController.renderNotebooks();
+            this.renderStats();
+            AppUI.closeModal('modal-sync-code');
+            AppUI.showToast(`Đã nạp thành công ${parsed.notebooks.length} sổ tay và ${totalWords} từ vựng!`, 'success');
+          }
+        } else {
+          AppUI.showToast('Mã đồng bộ không hợp lệ!', 'danger');
+        }
+      } catch (err) {
+        console.error('Lỗi giải mã sync code', err);
+        AppUI.showToast('Mã đồng bộ bị lỗi hoặc không đúng định dạng!', 'danger');
       }
     }
 
@@ -2649,12 +2778,614 @@
     }
   }
 
+
+  // =========================================================================
+  // READING CONTROLLER – Đọc bài & Lưu từ vào sổ tay
+  // =========================================================================
+  class ReadingController {
+    static currentWordData = null;  // Data of the word currently in popup
+    static currentWordEl  = null;   // DOM span of the word currently in popup
+    static sessionSavedWords = [];  // Words saved this session
+    static fontSize = 1.1;          // rem, default
+    static popup = null;
+    static popupVisible = false;
+
+    // -----------------------------------------------------------------------
+    // SAMPLE ARTICLES – built-in reading materials
+    // -----------------------------------------------------------------------
+    static SAMPLES = [
+      {
+        level: 'beginner',
+        title: 'The Importance of Sleep',
+        words: 120,
+        preview: 'Sleep is essential for our health. When we sleep, our body repairs itself and our brain consolidates memories...',
+        text: `Sleep is essential for our health. When we sleep, our body repairs itself and our brain consolidates memories from the day. Most adults need between seven and nine hours of sleep every night. Without enough sleep, people feel tired, irritable, and find it hard to concentrate. Chronic sleep deprivation can lead to serious health problems such as obesity, diabetes, and heart disease.
+
+There are several ways to improve your sleep quality. First, try to go to bed at the same time every night. Second, avoid screens such as phones and computers before bedtime, because the blue light they emit signals your brain to stay awake. Third, keep your bedroom cool, dark, and quiet. Finally, limit caffeine intake, especially in the afternoon and evening.
+
+Good sleep habits are an investment in your long-term health and well-being. If you consistently struggle to sleep, speak to a doctor, as there may be an underlying medical condition affecting your rest.`
+      },
+      {
+        level: 'intermediate',
+        title: 'The Rise of Remote Work',
+        words: 180,
+        preview: 'The COVID-19 pandemic fundamentally transformed how millions of people around the world approach their professional lives...',
+        text: `The COVID-19 pandemic fundamentally transformed how millions of people around the world approach their professional lives. Remote work, once considered a perk for a select few, rapidly became the default mode of operation for companies across virtually every industry. As a result, employees gained greater flexibility while organisations were forced to rethink traditional workplace structures.
+
+Despite its many advantages, remote work also presents significant challenges. Collaboration suffers when teams are physically separated, and the boundaries between professional and personal life can blur when your home doubles as your office. Feelings of isolation and disengagement are reported frequently among remote workers, especially those who live alone.
+
+Nevertheless, many businesses have discovered that productivity does not necessarily decline when employees work from home. In fact, several studies indicate that remote workers often accomplish more in fewer hours. This realisation has prompted a growing number of companies to adopt hybrid models, allowing staff to split their time between the office and home. As technology continues to evolve, remote work appears likely to remain a permanent feature of the modern professional landscape.`
+      },
+      {
+        level: 'advanced',
+        title: 'Artificial Intelligence and Ethical Dilemmas',
+        words: 220,
+        preview: 'As artificial intelligence systems grow increasingly sophisticated, society faces profound ethical dilemmas that challenge our fundamental assumptions...',
+        text: `As artificial intelligence systems grow increasingly sophisticated, society faces profound ethical dilemmas that challenge our fundamental assumptions about autonomy, responsibility, and fairness. Machine learning algorithms now inform decisions ranging from loan approvals and hiring processes to criminal sentencing recommendations and medical diagnoses. The opacity of many of these systems, often described as "black boxes," raises serious questions about accountability when errors occur.
+
+One of the most contentious debates centres on algorithmic bias. Researchers have demonstrated that AI models trained on historical data frequently perpetuate and even amplify existing societal biases. A facial recognition system that performs poorly on darker skin tones, or a recidivism prediction tool that systematically disadvantages minority groups, can cause tangible harm. Addressing this requires not merely technical solutions but a fundamental reconsideration of how training data is curated and labelled.
+
+The proliferation of generative AI also introduces unprecedented challenges around intellectual property, disinformation, and the nature of creative authorship. Deepfake technology enables the fabrication of realistic audio and video content, threatening democratic discourse and personal privacy alike. Regulatory frameworks are struggling to keep pace with these developments, and international coordination remains elusive.
+
+Ultimately, navigating these dilemmas demands interdisciplinary collaboration among technologists, ethicists, policymakers, and the broader public. Ensuring that AI serves humanity's best interests requires proactive governance, transparent development practices, and an unwavering commitment to equitable outcomes.`
+      },
+      {
+        level: 'beginner',
+        title: 'Healthy Eating Habits',
+        words: 130,
+        preview: 'Eating well is one of the most important things you can do for your health. A balanced diet provides the nutrients your body needs...',
+        text: `Eating well is one of the most important things you can do for your health. A balanced diet provides the nutrients your body needs to function properly, maintain a healthy weight, and reduce the risk of chronic disease.
+
+A nutritious meal plan includes plenty of fruits and vegetables, whole grains, lean proteins such as fish, chicken, and legumes, and healthy fats from sources like avocado, nuts, and olive oil. It also means limiting processed foods, sugary drinks, and excessive salt and saturated fat.
+
+Cooking at home gives you control over ingredients and portion sizes. When shopping, try to choose fresh, seasonal produce and read nutrition labels carefully. Eating slowly and mindfully helps your body recognise fullness, preventing overeating.
+
+Small, consistent changes—such as replacing white bread with whole grain or swapping sugary snacks for fruit—can make a significant difference over time. Remember, a healthy diet is not about strict deprivation but about nourishing your body with the right fuel.`
+      },
+      {
+        level: 'intermediate',
+        title: 'Climate Change and Renewable Energy',
+        words: 175,
+        preview: 'Climate change represents one of the most pressing challenges of the twenty-first century. Rising global temperatures, driven primarily by greenhouse gas emissions...',
+        text: `Climate change represents one of the most pressing challenges of the twenty-first century. Rising global temperatures, driven primarily by greenhouse gas emissions from burning fossil fuels, are causing ice caps to melt, sea levels to rise, and extreme weather events to become more frequent and severe.
+
+Transitioning to renewable energy sources is widely regarded as an essential component of any meaningful response to climate change. Solar and wind power have experienced dramatic cost reductions over the past decade, making them increasingly competitive with coal and natural gas. Countries including Germany, Denmark, and Costa Rica have demonstrated that substantial portions of national electricity grids can be powered by renewables without compromising reliability.
+
+However, the transition is not without obstacles. Energy storage technology must advance significantly to address the intermittent nature of solar and wind generation. Existing infrastructure requires considerable investment to accommodate new energy sources. Furthermore, communities dependent on fossil fuel industries face economic disruption and require dedicated support programmes.
+
+International cooperation is critical. Agreements such as the Paris Accord establish shared targets, but implementation remains uneven across nations. Bold policy action, combined with technological innovation and changes in consumer behaviour, will be necessary to limit global warming to manageable levels and safeguard the planet for future generations.`
+      }
+    ];
+
+    // -----------------------------------------------------------------------
+    // INIT
+    // -----------------------------------------------------------------------
+    static init() {
+      this.popup = document.getElementById('reading-word-popup');
+      this.bindInputScreenEvents();
+      this.bindPopupEvents();
+      this.renderSamples();
+      this.bindScrollProgress();
+    }
+
+    // -----------------------------------------------------------------------
+    // INPUT SCREEN
+    // -----------------------------------------------------------------------
+    static bindInputScreenEvents() {
+      // Tab switching
+      document.querySelectorAll('.reading-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabId = btn.getAttribute('data-tab');
+          document.querySelectorAll('.reading-tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.reading-tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          const tabEl = document.getElementById(tabId);
+          if (tabEl) tabEl.classList.add('active');
+        });
+      });
+
+      // Character count
+      const textarea = document.getElementById('reading-paste-input');
+      const charCount = document.getElementById('reading-char-count');
+      if (textarea && charCount) {
+        textarea.addEventListener('input', () => {
+          charCount.textContent = textarea.value.length.toLocaleString('vi') + ' ký tự';
+        });
+      }
+
+      // Clear text
+      const clearBtn = document.getElementById('btn-reading-clear-text');
+      if (clearBtn && textarea) {
+        clearBtn.addEventListener('click', () => {
+          textarea.value = '';
+          if (charCount) charCount.textContent = '0 ký tự';
+          textarea.focus();
+        });
+      }
+
+      // Start reading
+      const startBtn = document.getElementById('btn-reading-start');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          const text = textarea ? textarea.value.trim() : '';
+          if (!text || text.length < 20) {
+            AppUI.showToast('Vui lòng nhập ít nhất 20 ký tự văn bản!', 'danger');
+            return;
+          }
+          this.startReading(text, null);
+        });
+      }
+
+      // Fetch URL
+      const fetchBtn = document.getElementById('btn-reading-fetch-url');
+      if (fetchBtn) {
+        fetchBtn.addEventListener('click', () => this.fetchUrl());
+      }
+
+      // URL input: press Enter
+      const urlInput = document.getElementById('reading-url-input');
+      if (urlInput) {
+        urlInput.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); this.fetchUrl(); }
+        });
+      }
+
+      // Back button
+      const backBtn = document.getElementById('btn-reading-back');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => this.goBackToInput());
+      }
+
+      // New session
+      const newSessionBtn = document.getElementById('btn-reading-new-session');
+      if (newSessionBtn) {
+        newSessionBtn.addEventListener('click', () => this.goBackToInput());
+      }
+
+      // Font size controls
+      const fontInc = document.getElementById('btn-reading-font-increase');
+      const fontDec = document.getElementById('btn-reading-font-decrease');
+      if (fontInc) fontInc.addEventListener('click', () => this.changeFontSize(0.1));
+      if (fontDec) fontDec.addEventListener('click', () => this.changeFontSize(-0.1));
+    }
+
+    static async fetchUrl() {
+      const urlInput = document.getElementById('reading-url-input');
+      const statusEl = document.getElementById('reading-fetch-status');
+      const url = urlInput ? urlInput.value.trim() : '';
+
+      if (!url || !url.startsWith('http')) {
+        AppUI.showToast('Vui lòng nhập URL hợp lệ (bắt đầu bằng http/https)!', 'danger');
+        return;
+      }
+
+      if (statusEl) statusEl.textContent = '⏳ Đang tải bài viết...';
+
+      // Use AllOrigins proxy to bypass CORS
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        const html = data.contents;
+
+        // Parse HTML to extract text content
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        // Extract title
+        const title = doc.querySelector('title')?.textContent || '';
+
+        // Remove scripts, styles, nav, footer, aside
+        ['script', 'style', 'nav', 'footer', 'aside', 'header', 'figure', 'figcaption'].forEach(tag => {
+          doc.querySelectorAll(tag).forEach(el => el.remove());
+        });
+
+        // Try to get main article content
+        const contentSelectors = ['article', 'main', '[role="main"]', '.article-body', '.story-body', '.entry-content', '.post-content', '.content'];
+        let contentEl = null;
+        for (const sel of contentSelectors) {
+          contentEl = doc.querySelector(sel);
+          if (contentEl) break;
+        }
+        if (!contentEl) contentEl = doc.body;
+
+        // Extract paragraphs
+        const paragraphs = contentEl ? Array.from(contentEl.querySelectorAll('p, h1, h2, h3')).map(el => el.textContent.trim()).filter(t => t.length > 30) : [];
+        const text = paragraphs.join('\n\n');
+
+        if (!text || text.length < 50) {
+          if (statusEl) statusEl.textContent = '❌ Không thể trích xuất nội dung. Hãy copy-paste thủ công.';
+          return;
+        }
+
+        if (statusEl) statusEl.textContent = '✅ Đã tải thành công!';
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+
+        this.startReading(text, title.trim());
+      } catch (err) {
+        if (statusEl) statusEl.textContent = '❌ Không tải được (có thể do CORS). Hãy copy-paste văn bản thủ công.';
+        console.warn('URL fetch error:', err);
+      }
+    }
+
+    static renderSamples() {
+      const container = document.getElementById('reading-samples-list');
+      if (!container) return;
+
+      container.innerHTML = this.SAMPLES.map((s, i) => {
+        const levelClass = { beginner: 'level-beginner', intermediate: 'level-intermediate', advanced: 'level-advanced' }[s.level] || 'level-beginner';
+        const levelText = { beginner: 'Cơ bản', intermediate: 'Trung cấp', advanced: 'Nâng cao' }[s.level] || s.level;
+        return `
+          <div class="reading-sample-card" data-sample-idx="${i}">
+            <span class="reading-sample-level ${levelClass}">${levelText}</span>
+            <div class="reading-sample-title">${s.title}</div>
+            <div class="reading-sample-preview">${s.preview}</div>
+            <div class="reading-sample-meta">
+              <span>📄 ~${s.words} từ</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      container.querySelectorAll('.reading-sample-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const idx = parseInt(card.getAttribute('data-sample-idx'));
+          const sample = this.SAMPLES[idx];
+          if (sample) this.startReading(sample.text, sample.title);
+        });
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // START READING SESSION
+    // -----------------------------------------------------------------------
+    static startReading(text, title) {
+      // Reset session state
+      this.sessionSavedWords = [];
+      this.closePopup();
+
+      // Switch screens
+      document.getElementById('reading-input-screen').style.display = 'none';
+      document.getElementById('reading-active-screen').style.display = 'block';
+      document.getElementById('reading-session-summary').style.display = 'none';
+      document.getElementById('reading-scroll-progress').style.width = '0%';
+
+      // Article title
+      const titleEl = document.getElementById('reading-article-title');
+      if (titleEl) {
+        if (title) {
+          titleEl.textContent = title;
+          titleEl.style.display = 'block';
+        } else {
+          titleEl.style.display = 'none';
+        }
+      }
+
+      // Tokenize and render
+      const contentArea = document.getElementById('reading-content-area');
+      if (contentArea) {
+        contentArea.innerHTML = this.tokenizeText(text);
+        contentArea.querySelectorAll('.r-word').forEach(wordEl => {
+          wordEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.onWordClick(wordEl, e);
+          });
+        });
+      }
+
+      // Update saved badge
+      this.updateSavedBadge();
+
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // -----------------------------------------------------------------------
+    // TEXT TOKENIZER
+    // -----------------------------------------------------------------------
+    static tokenizeText(text) {
+      // Get all words already saved in notebooks for pre-highlighting
+      const savedWords = new Set(
+        StorageManager.getAllWords().map(w => w.word.toLowerCase())
+      );
+
+      // Split text into paragraphs
+      const paragraphs = text.split(/\n+/);
+      let html = '';
+
+      paragraphs.forEach(para => {
+        para = para.trim();
+        if (!para) return;
+
+        // Tokenize into words and non-words
+        const tokens = para.split(/(\b[a-zA-Z']+\b)/);
+
+        let paraHtml = '';
+        tokens.forEach(token => {
+          if (/^[a-zA-Z']+$/.test(token)) {
+            const clean = token.replace(/^'+|'+$/g, '').toLowerCase();
+            const isSaved = savedWords.has(clean);
+            const stateClass = isSaved ? ' saved' : '';
+            const escapedToken = this.escapeHtml(token);
+            paraHtml += `<span class="r-word${stateClass}" data-word="${clean}">${escapedToken}</span>`;
+          } else {
+            paraHtml += `<span class="r-punct">${this.escapeHtml(token)}</span>`;
+          }
+        });
+
+        html += `<p style="margin-bottom: 1em;">${paraHtml}</p>`;
+      });
+
+      return html;
+    }
+
+    static escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // -----------------------------------------------------------------------
+    // WORD CLICK → POPUP
+    // -----------------------------------------------------------------------
+    static onWordClick(wordEl, event) {
+      const word = wordEl.getAttribute('data-word');
+      if (!word || word.length < 2) return;
+
+      // Mark as "looked" if not already saved
+      if (!wordEl.classList.contains('saved')) {
+        wordEl.classList.add('looked');
+        // Also mark all same words in the text
+        document.querySelectorAll(`.r-word[data-word="${word}"]`).forEach(el => {
+          if (!el.classList.contains('saved')) el.classList.add('looked');
+        });
+      }
+
+      this.currentWordEl = wordEl;
+      this.showPopup(word, event);
+    }
+
+    static showPopup(word, event) {
+      if (!this.popup) return;
+
+      // Reset popup state
+      document.getElementById('rwp-word').textContent = word;
+      document.getElementById('rwp-phonetic').textContent = '';
+      document.getElementById('rwp-loading').style.display = 'flex';
+      document.getElementById('rwp-content').style.display = 'none';
+      document.getElementById('rwp-saved-badge').style.display = 'none';
+      document.getElementById('rwp-meaning-vi').textContent = '';
+      document.getElementById('rwp-meaning-en').textContent = '';
+      document.getElementById('rwp-pos').textContent = '';
+      document.getElementById('rwp-example').style.display = 'none';
+
+      // Populate notebook select
+      this.populateRwpNotebookSelect();
+
+      // Check if already saved
+      const allSaved = StorageManager.getAllWords();
+      const existingSaved = allSaved.find(w => w.word.toLowerCase() === word.toLowerCase());
+      if (existingSaved) {
+        document.getElementById('btn-rwp-save').textContent = '✓ Đã lưu';
+        document.getElementById('btn-rwp-save').disabled = true;
+        document.getElementById('btn-rwp-save').style.opacity = '0.6';
+      } else {
+        document.getElementById('btn-rwp-save').textContent = '+ Lưu';
+        document.getElementById('btn-rwp-save').disabled = false;
+        document.getElementById('btn-rwp-save').style.opacity = '1';
+      }
+
+      // Position popup near click
+      this.positionPopup(event);
+
+      this.popup.classList.add('visible');
+      this.popupVisible = true;
+      this.currentWordData = { word, phonetic: '', audioUrl: '', partOfSpeech: '', meaningEn: '', meaningVi: '', examples: [] };
+
+      // Fetch word data
+      DictionaryService.performFastLookup(word, (result) => {
+        this.currentWordData = result;
+        document.getElementById('rwp-loading').style.display = 'none';
+        document.getElementById('rwp-content').style.display = 'block';
+
+        if (result.phonetic) document.getElementById('rwp-phonetic').textContent = result.phonetic;
+        if (result.partOfSpeech) document.getElementById('rwp-pos').textContent = result.partOfSpeech;
+        if (result.meaningVi) document.getElementById('rwp-meaning-vi').textContent = result.meaningVi;
+        if (result.meaningEn) document.getElementById('rwp-meaning-en').textContent = result.meaningEn;
+
+        if (result.examples && result.examples.length > 0) {
+          const exEl = document.getElementById('rwp-example');
+          exEl.textContent = '"' + result.examples[0].en + '"';
+          exEl.style.display = 'block';
+        }
+      });
+
+      // Auto-pronounce
+      SoundService.speak(word);
+    }
+
+    static positionPopup(event) {
+      if (!this.popup) return;
+      const popup = this.popup;
+      popup.style.left = '';
+      popup.style.top = '';
+      popup.style.right = '';
+      popup.style.bottom = '';
+
+      const margin = 12;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const popW = 320;
+      const popH = 300; // estimated
+
+      let x = event.clientX + margin;
+      let y = event.clientY + margin;
+
+      if (x + popW > vpW - margin) x = event.clientX - popW - margin;
+      if (y + popH > vpH - margin) y = event.clientY - popH - margin;
+      if (x < margin) x = margin;
+      if (y < margin) y = margin;
+
+      popup.style.left = x + 'px';
+      popup.style.top = y + 'px';
+    }
+
+    static closePopup() {
+      if (this.popup) this.popup.classList.remove('visible');
+      this.popupVisible = false;
+      this.currentWordEl = null;
+      this.currentWordData = null;
+    }
+
+    static bindPopupEvents() {
+      const closeBtn = document.getElementById('btn-rwp-close');
+      if (closeBtn) closeBtn.addEventListener('click', () => this.closePopup());
+
+      const speakBtn = document.getElementById('btn-rwp-speak');
+      if (speakBtn) {
+        speakBtn.addEventListener('click', () => {
+          const word = document.getElementById('rwp-word')?.textContent;
+          if (word) SoundService.speak(word, 0.9, this.currentWordData?.audioUrl);
+        });
+      }
+
+      const saveBtn = document.getElementById('btn-rwp-save');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', () => this.saveCurrentWord());
+      }
+
+      // Close popup when clicking outside
+      document.addEventListener('click', (e) => {
+        if (this.popupVisible && this.popup && !this.popup.contains(e.target) && !e.target.classList.contains('r-word')) {
+          this.closePopup();
+        }
+      });
+    }
+
+    static populateRwpNotebookSelect() {
+      const select = document.getElementById('rwp-notebook-select');
+      if (!select) return;
+      const notebooks = StorageManager.getNotebooks();
+      select.innerHTML = notebooks.length > 0
+        ? notebooks.map(nb => `<option value="${nb.id}">${nb.name}</option>`).join('')
+        : '<option value="">Chưa có sổ tay nào</option>';
+    }
+
+    static saveCurrentWord() {
+      if (!this.currentWordData) return;
+      const select = document.getElementById('rwp-notebook-select');
+      const notebookId = select ? select.value : '';
+      if (!notebookId) {
+        AppUI.showToast('Vui lòng tạo ít nhất 1 sổ tay trước!', 'danger');
+        return;
+      }
+
+      const { word, phonetic, partOfSpeech, meaningEn, meaningVi, examples, audioUrl } = this.currentWordData;
+      const result = StorageManager.addWordToNotebook(notebookId, {
+        word, phonetic, partOfSpeech, meaningEn, meaningVi, examples, imageUrl: ''
+      });
+
+      if (result && result.alreadyExists) {
+        AppUI.showToast(`"${word}" đã có trong sổ tay này rồi!`, 'info');
+        return;
+      }
+
+      // Mark word in text as saved
+      document.querySelectorAll(`.r-word[data-word="${word.toLowerCase()}"]`).forEach(el => {
+        el.classList.remove('looked');
+        el.classList.add('saved');
+      });
+
+      // Track session
+      if (!this.sessionSavedWords.find(w => w.word === word)) {
+        this.sessionSavedWords.push({ word, meaningVi });
+      }
+      this.updateSavedBadge();
+
+      // Show saved badge
+      const saveBtn = document.getElementById('btn-rwp-save');
+      const savedBadge = document.getElementById('rwp-saved-badge');
+      if (saveBtn) { saveBtn.textContent = '✓ Đã lưu'; saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; }
+      if (savedBadge) savedBadge.style.display = 'block';
+
+      SoundService.playCorrectTone();
+      const nb = StorageManager.getNotebook(notebookId);
+      AppUI.showToast(`✅ Đã lưu "${word}" vào "${nb?.name || 'sổ tay'}"!`, 'success');
+
+      setTimeout(() => this.closePopup(), 1200);
+    }
+
+    static updateSavedBadge() {
+      const badge = document.getElementById('reading-saved-count-badge');
+      if (badge) {
+        badge.textContent = `${this.sessionSavedWords.length} từ đã lưu`;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // GO BACK & SESSION SUMMARY
+    // -----------------------------------------------------------------------
+    static goBackToInput() {
+      this.closePopup();
+
+      // Show session summary if words were saved
+      if (this.sessionSavedWords.length > 0) {
+        const summaryEl = document.getElementById('reading-session-summary');
+        const summaryWords = document.getElementById('reading-summary-words');
+        if (summaryEl && summaryWords) {
+          summaryWords.innerHTML = `
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+              Bạn đã lưu <strong>${this.sessionSavedWords.length} từ</strong> vào sổ tay trong phiên đọc này:
+            </p>
+            <div>${this.sessionSavedWords.map(w => `
+              <span class="reading-saved-word-chip">
+                📗 ${w.word}${w.meaningVi ? ' – ' + w.meaningVi.split(';')[0].split(',')[0] : ''}
+              </span>`).join('')}
+            </div>`;
+          summaryEl.style.display = 'block';
+          summaryEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+
+      // Otherwise go straight back to input
+      document.getElementById('reading-active-screen').style.display = 'none';
+      document.getElementById('reading-input-screen').style.display = 'block';
+      this.sessionSavedWords = [];
+    }
+
+    // -----------------------------------------------------------------------
+    // FONT SIZE CONTROLS
+    // -----------------------------------------------------------------------
+    static changeFontSize(delta) {
+      this.fontSize = Math.min(1.6, Math.max(0.85, this.fontSize + delta));
+      const contentArea = document.getElementById('reading-content-area');
+      if (contentArea) contentArea.style.fontSize = this.fontSize + 'rem';
+    }
+
+    // -----------------------------------------------------------------------
+    // SCROLL PROGRESS BAR
+    // -----------------------------------------------------------------------
+    static bindScrollProgress() {
+      window.addEventListener('scroll', () => {
+        if (document.getElementById('reading-active-screen')?.style.display !== 'none') {
+          const el = document.getElementById('reading-active-screen');
+          const scrollTop = window.scrollY;
+          const docH = el ? el.offsetHeight : document.body.scrollHeight;
+          const winH = window.innerHeight;
+          const progress = Math.min(100, (scrollTop / (docH - winH)) * 100);
+          const bar = document.getElementById('reading-scroll-progress');
+          if (bar) bar.style.width = progress + '%';
+        }
+      });
+    }
+  }
+
   // =========================================================================
   // BOOTSTRAP APPLICATION
   // =========================================================================
   window.addEventListener('DOMContentLoaded', () => {
     AppController.init();
-    
+    ReadingController.init();
+
     // PWA Service Worker Registration
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').then(registration => {
