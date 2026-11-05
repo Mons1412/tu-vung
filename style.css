@@ -1968,3 +1968,33 @@ button {
   }
 }
 
+
+/* Pronunciation Coach — accent selection (Phase 1) */
+.pron-accent-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.pron-accent-control select {
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--bg-card, var(--bg-main, white));
+  font: inherit;
+}
+.pron-accent-control select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.pron-accent-status {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

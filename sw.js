@@ -1,4 +1,4 @@
-const CACHE_NAME = "vocamini-cache-v1";
+const CACHE_NAME = "vocamini-cache-v2";
 const urlsToCache = [
   "./",
   "./index.html",
@@ -28,5 +28,14 @@ self.addEventListener("fetch", event => {
         }
         return fetch(event.request);
       })
+  );
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(key => key.startsWith("vocamini-cache-") && key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+    )).then(() => self.clients.claim())
   );
 });
