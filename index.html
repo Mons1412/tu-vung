@@ -139,6 +139,32 @@
           </button>
         </div>
 
+        <!-- Phase 2: microphone recorder; audio stays in browser memory only. -->
+        <div class="pron-recorder-entry">
+          <button type="button" id="btn-pron-practice" class="btn btn-secondary btn-sm" aria-expanded="false" aria-controls="pron-record-panel">
+            🎙️ Luyện phát âm từ này
+          </button>
+        </div>
+        <section id="pron-record-panel" class="pron-record-panel" aria-labelledby="pron-record-heading" hidden>
+          <div class="pron-record-head">
+            <div>
+              <h3 id="pron-record-heading">🎙️ Ghi âm và nghe lại</h3>
+              <p class="pron-record-description">Đọc từ <strong id="pron-record-target">—</strong> theo giọng <strong id="pron-record-accent">Anh–Mỹ</strong>.</p>
+            </div>
+            <button type="button" id="btn-pron-close" class="btn btn-secondary btn-sm" aria-label="Đóng phần luyện phát âm">Đóng</button>
+          </div>
+          <p class="pron-record-help">Nhấn nghe mẫu trước khi ghi âm. Dùng tai nghe để tránh tiếng mẫu lọt vào microphone.</p>
+          <div class="pron-record-actions">
+            <button type="button" id="btn-pron-record" class="btn btn-primary btn-sm">🎙️ Bắt đầu ghi</button>
+            <button type="button" id="btn-pron-stop" class="btn btn-secondary btn-sm" disabled>⏹ Dừng ghi</button>
+            <button type="button" id="btn-pron-clear" class="btn btn-secondary btn-sm" disabled>🗑️ Xóa bản ghi</button>
+            <span id="pron-record-timer" class="pron-record-timer" aria-label="Thời gian ghi âm">00:00 / 00:15</span>
+          </div>
+          <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi chỉ được giữ tạm trong trình duyệt và không được tải lên máy chủ.</p>
+          <audio id="pron-record-playback" controls preload="none" aria-label="Nghe lại giọng của bạn" hidden></audio>
+          <p class="pron-record-disclaimer">Phase 2: chỉ ghi âm và nghe lại. Chưa chấm điểm hoặc phát hiện lỗi phát âm.</p>
+        </section>
+
         <!-- Image Illustration (TFlat style) -->
         <div id="dict-image-container" class="dict-image-container">
           <div class="dict-image-wrapper">
@@ -1065,5 +1091,6 @@
   
   <!-- JavaScript Application Script -->
   <script src="app.js"></script>
+  <script src="pronunciation/recorder.js"></script>
 </body>
 </html>
