@@ -16,6 +16,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from vosk import KaldiRecognizer, Model, SetLogLevel
+from audio_diagnostics import analyze_wav
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "models" / "vosk-model-small-en-us-0.15"
@@ -85,10 +86,11 @@ def make_handler(model: Model):
                 if len(expected) > 80 or not normalize(expected):
                     return self.send_json(400, {"error": "Từ mục tiêu không hợp lệ."})
                 audio = self.rfile.read(size)
+                diagnostics = analyze_wav(audio)
                 detected = recognize(model, audio)
                 needle = normalize(expected)
                 matched = bool(detected and needle and (f" {needle} " in f" {detected} "))
-                return self.send_json(200, {"expected": expected, "recognized": detected, "matched": matched, "recognition_only": True})
+                return self.send_json(200, {"expected": expected, "recognized": detected, "matched": matched, "recognition_only": True, "recording_quality": diagnostics})
             except (ValueError, wave.Error, EOFError) as error:
                 return self.send_json(400, {"error": str(error)})
             except Exception:

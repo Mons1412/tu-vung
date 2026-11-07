@@ -44,6 +44,8 @@
       this.waveMeta = document.getElementById('pron-wave-meta');
       this.asrButton = document.getElementById('btn-pron-asr');
       this.asrResult = document.getElementById('pron-asr-result');
+      this.qualityPanel = document.getElementById('pron-audio-quality');
+      this.qualityResult = document.getElementById('pron-audio-quality-result');
       this.latestBlob = null;
       this.asrController = null;
       this.asrBusy = false;
@@ -278,6 +280,7 @@
       const contentType = session.recorder.mimeType || session.chunks[0].type || 'application/octet-stream';
       const blob = new Blob(session.chunks, { type: contentType });
       this.latestBlob = blob;
+      this.clearRecordingQuality();
       if (this.asrResult) this.asrResult.textContent = 'Bấm “Kiểm tra máy nghe được gì” để nhận diện offline bằng Vosk.';
       this.objectUrl = URL.createObjectURL(blob);
       this.audioElement.src = this.objectUrl;
@@ -456,8 +459,10 @@
           ? 'Máy nhận ra từ mục tiêu. Hãy tiếp tục nghe A/B để tự kiểm tra các âm.'
           : 'Máy chưa nhận đúng từ mục tiêu. Có thể do phát âm, tiếng ồn hoặc giới hạn của ASR.';
         if (this.asrResult) this.asrResult.textContent = `Từ mục tiêu: ${word}\nMáy nhận được: ${detected}\n${notice}\nModel US được dùng để nhận diện cả hai lựa chọn giọng; kết quả không phải điểm phát âm.`;
+        this.renderRecordingQuality(data.recording_quality);
       } catch (error) {
         if (generation !== this.generation || controller.signal.aborted) return;
+        this.clearRecordingQuality();
         const message = error instanceof TypeError
           ? 'Không kết nối được Vosk local. Hãy chạy server bằng Python thay vì http-server.'
           : (error?.message || 'Không thể nhận diện bản ghi.');
@@ -469,6 +474,33 @@
           this.refreshButtons();
         }
       }
+    }
+
+    clearRecordingQuality() {
+      if (this.qualityPanel) this.qualityPanel.hidden = true;
+      if (this.qualityResult) this.qualityResult.textContent = '';
+    }
+
+    renderRecordingQuality(quality) {
+      if (!this.qualityPanel || !this.qualityResult) return;
+      if (!quality || quality.recording_quality_only !== true ||
+          !Number.isFinite(quality.duration_s) || !Number.isFinite(quality.rms_dbfs) ||
+          !Number.isFinite(quality.peak_dbfs) || !Number.isFinite(quality.clipped_pct) ||
+          !Number.isFinite(quality.active_signal_pct) || !Array.isArray(quality.advice)) {
+        this.clearRecordingQuality();
+        return;
+      }
+      // All data is rendered using textContent, never interpreted as HTML.
+      const notes = quality.advice.filter(item => typeof item === 'string').slice(0, 4);
+      this.qualityResult.textContent = [
+        `Thời lượng: ${quality.duration_s.toFixed(2)} giây`,
+        `Âm lượng trung bình: ${quality.rms_dbfs.toFixed(1)} dBFS`,
+        `Đỉnh tín hiệu: ${quality.peak_dbfs.toFixed(1)} dBFS`,
+        `Mẫu gần clipping: ${quality.clipped_pct.toFixed(2)}%`,
+        `Khung có năng lượng âm: ${quality.active_signal_pct.toFixed(0)}% (có thể gồm tiếng ồn)`,
+        ...notes.map(t => `• ${t}`)
+      ].join('\n');
+      this.qualityPanel.hidden = false;
     }
 
     clearTimers() {
@@ -484,6 +516,7 @@
       this.asrBusy = false;
       this.latestBlob = null;
       if (this.asrResult) this.asrResult.textContent = 'Ghi âm xong rồi nhấn kiểm tra. Không gửi bản ghi lên cloud.';
+      this.clearRecordingQuality();
       this.audioElement.pause();
       this.audioElement.removeAttribute('src');
       this.audioElement.hidden = true;

@@ -208,6 +208,12 @@
               <p class="pron-record-help">Dùng Vosk trên máy Windows để xem máy đã nghe ra từ nào. Đây <strong>không phải</strong> điểm chấm phát âm hoặc đánh giá Anh–Anh/Anh–Mỹ.</p>
               <button type="button" id="btn-pron-asr" class="btn btn-secondary btn-sm" disabled>🔍 Kiểm tra máy nghe được gì</button>
               <p id="pron-asr-result" class="pron-asr-result" role="status" aria-live="polite">Ghi âm xong rồi nhấn kiểm tra. Âm thanh chỉ gửi tới server local khi bạn chủ động nhấn nút.</p>
+              <!-- Phase 6.1: microphone signal-quality precheck; NOT pronunciation grading. -->
+              <section id="pron-audio-quality" class="pron-audio-quality" aria-label="Kiểm tra chất lượng bản ghi" aria-live="polite" hidden>
+                <h5>🎛️ Kiểm tra tín hiệu ghi âm</h5>
+                <p id="pron-audio-quality-result" class="pron-audio-quality-result"></p>
+                <p class="pron-audio-quality-note">Chỉ kiểm tra mức âm lượng, thời lượng và clipping. Không chấm phát âm, không nhận biết lỗi âm vị hoặc giọng UK/US.</p>
+              </section>
             </section>
             <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
           </section>

@@ -1,4 +1,4 @@
-const CACHE_NAME = "vocamini-cache-v7";
+const CACHE_NAME = "vocamini-cache-v8";
 const urlsToCache = [
   "./",
   "./index.html",

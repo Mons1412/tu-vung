@@ -2086,3 +2086,11 @@ button {
   .pron-pair-actions { width: 100%; }
   .pron-pair-actions button { flex: 1 1 120px; }
 }
+
+
+/* Phase 6.1 — audio recording quality hints, not phoneme scoring. */
+.pron-audio-quality[hidden] { display: none !important; }
+.pron-audio-quality { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 9px; background: var(--bg-muted); }
+.pron-audio-quality h5 { font-size: .94rem; color: var(--text-main); margin: 0 0 8px; }
+.pron-audio-quality-result { white-space: pre-line; font-size: .86rem; line-height: 1.55; color: var(--text-main); overflow-wrap: anywhere; }
+.pron-audio-quality-note { font-size: .78rem; color: var(--text-muted); margin: 8px 0 0; }
