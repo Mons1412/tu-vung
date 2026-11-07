@@ -1,10 +1,12 @@
-const CACHE_NAME = "vocamini-cache-v6";
+const CACHE_NAME = "vocamini-cache-v7";
 const urlsToCache = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
   "./pronunciation/recorder.js",
+  "./pronunciation/phoneme-data.js",
+  "./pronunciation/minimal-pairs.js",
   "./icon-192.jpg",
   "./icon-512.jpg",
   "./manifest.json",

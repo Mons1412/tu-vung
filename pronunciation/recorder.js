@@ -97,6 +97,16 @@
       });
       window.addEventListener('pagehide', () => this.cancel());
 
+      // A minimal-pair sample must not overlap a live microphone session or playback.
+      window.addEventListener('vocamini:prepare-reference-audio', () => {
+        if (this.phase === 'recording' || this.phase === 'requesting') {
+          this.cancel();
+          this.message('Đã dừng ghi âm để nghe mẫu minimal pairs.');
+        } else {
+          this.audioElement.pause();
+        }
+      });
+
       // Prevent example audio from overlapping a microphone recording.
       const sample = document.getElementById('btn-dict-speak');
       if (sample) sample.addEventListener('click', () => {

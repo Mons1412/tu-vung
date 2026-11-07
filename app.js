@@ -684,6 +684,14 @@
     }
   }
 
+  // Phase 5 minimal-pair samples reuse the established US/UK SoundService.
+  window.addEventListener('vocamini:speak-reference-word', event => {
+    const word = event.detail?.word;
+    if (typeof word === 'string' && /^[a-z]{1,32}$/i.test(word)) {
+      SoundService.speak(word, 0.85);
+    }
+  });
+
   // The offline A/B practice module can stop a currently playing reference sample.
   // Keep the SoundService implementation private to app.js, without global API keys.
   window.addEventListener('vocamini:stop-reference-audio', () => {

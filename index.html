@@ -154,6 +154,22 @@
             <button type="button" id="btn-pron-close" class="btn btn-secondary btn-sm" aria-label="Đóng phần luyện phát âm">Đóng</button>
           </div>
           <p class="pron-record-help">Nhấn nghe mẫu trước khi ghi âm. Dùng tai nghe để tránh tiếng mẫu lọt vào microphone.</p>
+          <!-- Phase 5: guided minimal-pair practice; no automatic phoneme scoring. -->
+          <section id="pron-minimal-pairs" class="pron-minimal-pairs" aria-labelledby="pron-pair-heading">
+            <h4 id="pron-pair-heading">🗣️ Luyện cặp âm dễ nhầm (Minimal Pairs)</h4>
+            <p class="pron-record-help">Chọn hai từ chỉ khác một âm. Nghe từng từ theo giọng US/UK đang chọn, xem khẩu hình và tự luyện lại bằng nút ghi âm ở dưới.</p>
+            <label class="pron-pair-label" for="pron-pair-select">Cặp âm muốn luyện</label>
+            <select id="pron-pair-select" class="pron-pair-select" aria-label="Chọn bài tập minimal pairs"></select>
+            <div id="pron-pair-cards" class="pron-pair-cards" aria-label="Hai từ trong cặp âm"></div>
+            <div class="pron-pair-guide">
+              <strong>💡 Điểm cần chú ý</strong>
+              <p id="pron-pair-difference"></p>
+              <ul id="pron-pair-tips"></ul>
+            </div>
+            <p id="pron-pair-status" class="pron-pair-status" role="status" aria-live="polite"></p>
+            <p class="pron-pair-note">IPA là phiên âm tham khảo theo từ điển. Vosk chỉ nhận diện từ, không xác định âm vị phát âm đúng hay sai.</p>
+          </section>
+
           <div class="pron-record-actions">
             <button type="button" id="btn-pron-record" class="btn btn-primary btn-sm">🎙️ Bắt đầu ghi</button>
             <button type="button" id="btn-pron-stop" class="btn btn-secondary btn-sm" disabled>⏹ Dừng ghi</button>
@@ -1125,5 +1141,7 @@
   <!-- JavaScript Application Script -->
   <script src="app.js"></script>
   <script src="pronunciation/recorder.js"></script>
+  <script src="pronunciation/phoneme-data.js"></script>
+  <script src="pronunciation/minimal-pairs.js"></script>
 </body>
 </html>
