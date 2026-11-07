@@ -1,6 +1,7 @@
 /**
  * VocaMini - Pronunciation Recorder, Phase 2
- * Local microphone capture and playback only. No network requests, scoring or persistence.
+ * Offline comparison using the existing recorder and locally decoded waveform.
+ * No cloud requests, automatic pronunciation scoring, or audio persistence.
  */
 (() => {
   'use strict';
@@ -33,6 +34,14 @@
       this.timeoutId = null;
       this.currentWord = '';
       this.currentAccent = '';
+      this.comparePanel = document.getElementById('pron-compare-panel');
+      this.sampleButton = document.getElementById('btn-pron-compare-sample');
+      this.selfButton = document.getElementById('btn-pron-compare-self');
+      this.retryButton = document.getElementById('btn-pron-compare-retry');
+      this.speedSelect = document.getElementById('pron-playback-speed');
+      this.compareStatus = document.getElementById('pron-compare-status');
+      this.waveform = document.getElementById('pron-user-waveform');
+      this.waveMeta = document.getElementById('pron-wave-meta');
     }
 
     init() {
@@ -47,6 +56,12 @@
       this.recordButton.addEventListener('click', () => this.start());
       this.stopButton.addEventListener('click', () => this.stop());
       this.clearButton.addEventListener('click', () => this.clear());
+      this.sampleButton?.addEventListener('click', () => this.playSample());
+      this.selfButton?.addEventListener('click', () => this.playSelf());
+      this.retryButton?.addEventListener('click', () => this.start());
+      this.speedSelect?.addEventListener('change', () => {
+        if (this.audioElement) this.audioElement.playbackRate = Number(this.speedSelect.value) || 1;
+      });
       this.accentSelect.addEventListener('change', () => {
         this.cancel();
         this.updateTarget();
@@ -149,6 +164,7 @@
         return;
       }
 
+      window.dispatchEvent(new Event('vocamini:stop-reference-audio'));
       this.discardAudio();
       const generation = ++this.generation;
       this.phase = 'requesting';
@@ -248,8 +264,92 @@
       this.audioElement.src = this.objectUrl;
       this.audioElement.hidden = false;
       this.phase = 'ready';
-      this.message('Đã ghi xong! Bấm Play để nghe lại. Bạn có thể ghi lại nếu chưa ưng ý.');
+      if (this.comparePanel) this.comparePanel.hidden = false;
+      if (this.speedSelect) this.speedSelect.value = '1';
+      this.audioElement.playbackRate = 1;
+      if (this.compareStatus) this.compareStatus.textContent = 'Bấm A để nghe mẫu, B để nghe bản ghi của bạn.';
+      this.resetSelfChecks();
+      this.message('Đã ghi xong! Bấm A/B để nghe so sánh và ghi lại khi cần.');
       this.refreshButtons();
+      this.analyzeAudio(blob, session.generation);
+    }
+
+    resetSelfChecks() {
+      this.panel.querySelectorAll('.pron-self-check-item').forEach(item => { item.checked = false; });
+    }
+
+    playSample() {
+      if (this.phase !== 'ready' || this.panel.hidden || !this.currentWord) return;
+      this.audioElement.pause();
+      if (this.compareStatus) this.compareStatus.textContent = `Đang phát mẫu ${this.currentAccent}. Sau đó bấm B để nghe giọng bạn.`;
+      // Reuse the working Phase 1 accent-specific SoundService via its dictionary speaker.
+      document.getElementById('btn-dict-speak')?.click();
+    }
+
+    async playSelf() {
+      if (this.phase !== 'ready' || this.panel.hidden || !this.objectUrl) return;
+      // Also stop the online sample if it is still playing, preventing overlap.
+      window.dispatchEvent(new Event('vocamini:stop-reference-audio'));
+      this.audioElement.pause();
+      this.audioElement.currentTime = 0;
+      this.audioElement.playbackRate = Number(this.speedSelect?.value) || 1;
+      if (this.compareStatus) this.compareStatus.textContent = 'Đang phát giọng bạn; nghe lại các âm đầu/cuối và nguyên âm.';
+      try {
+        await this.audioElement.play();
+      } catch (error) {
+        if (this.compareStatus) this.compareStatus.textContent = 'Không phát được bản ghi. Hãy bấm Play trên trình phát phía trên.';
+      }
+    }
+
+    async analyzeAudio(blob, generation) {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (!Context || !this.waveform) {
+        if (this.waveMeta) this.waveMeta.textContent = 'Trình duyệt không hỗ trợ hiển thị dạng sóng.';
+        return;
+      }
+      let context = null;
+      try {
+        // Maximum recording length is 15s; decode only the user's temporary local recording.
+        context = new Context();
+        const buffer = await context.decodeAudioData(await blob.arrayBuffer());
+        if (generation !== this.generation || !this.objectUrl || this.panel.hidden) return;
+        this.drawWaveform(buffer);
+        if (this.waveMeta) this.waveMeta.textContent = `Thời lượng bản ghi: ${buffer.duration.toFixed(2)} giây · Dạng sóng chỉ cho biết biên độ, không đánh giá âm vị.`;
+      } catch (error) {
+        if (generation === this.generation && this.waveMeta) {
+          this.waveMeta.textContent = 'Không thể hiển thị dạng sóng ở định dạng này; bạn vẫn có thể nghe lại.';
+        }
+      } finally {
+        if (context) context.close().catch(() => {});
+      }
+    }
+
+    drawWaveform(audioBuffer) {
+      const canvas = this.waveform;
+      const g = canvas.getContext('2d');
+      if (!g) return;
+      const w = canvas.width;
+      const h = canvas.height;
+      g.clearRect(0, 0, w, h);
+      const channels = [];
+      for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
+      const samples = audioBuffer.length;
+      const step = Math.max(1, Math.ceil(samples / w));
+      g.strokeStyle = '#64748b';
+      g.lineWidth = 1;
+      for (let i = 0; i < w; i++) {
+        const start = i * step;
+        const end = Math.min(samples, start + step);
+        let peak = 0;
+        for (let j = start; j < end; j++) {
+          for (const channel of channels) peak = Math.max(peak, Math.abs(channel[j] || 0));
+        }
+        const amplitude = peak * (h / 2 - 5);
+        g.beginPath();
+        g.moveTo(i + 0.5, h / 2 - amplitude);
+        g.lineTo(i + 0.5, h / 2 + amplitude);
+        g.stroke();
+      }
     }
 
     clearTimers() {
@@ -267,6 +367,11 @@
       if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
       this.objectUrl = null;
       this.timerElement.textContent = '00:00 / 00:15';
+      if (this.comparePanel) this.comparePanel.hidden = true;
+      if (this.compareStatus) this.compareStatus.textContent = '';
+      if (this.waveMeta) this.waveMeta.textContent = 'Chưa có bản ghi.';
+      if (this.waveform) this.waveform.getContext('2d')?.clearRect(0, 0, this.waveform.width, this.waveform.height);
+      this.resetSelfChecks();
     }
 
     cancel() {

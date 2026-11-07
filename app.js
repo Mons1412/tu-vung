@@ -684,6 +684,18 @@
     }
   }
 
+  // The offline A/B practice module can stop a currently playing reference sample.
+  // Keep the SoundService implementation private to app.js, without global API keys.
+  window.addEventListener('vocamini:stop-reference-audio', () => {
+    SoundService.playSession = (SoundService.playSession || 0) + 1;
+    SoundService.voiceRequestId = (SoundService.voiceRequestId || 0) + 1;
+    if (SoundService.currentAudio) {
+      try { SoundService.currentAudio.pause(); SoundService.currentAudio.currentTime = 0; } catch (e) {}
+      SoundService.currentAudio = null;
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  });
+
   // Pre-load voices for SpeechSynthesis
   if ('speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = () => {

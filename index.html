@@ -162,7 +162,34 @@
           </div>
           <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi chỉ được giữ tạm trong trình duyệt và không được tải lên máy chủ.</p>
           <audio id="pron-record-playback" controls preload="none" aria-label="Nghe lại giọng của bạn" hidden></audio>
-          <p class="pron-record-disclaimer">Phase 2: chỉ ghi âm và nghe lại. Chưa chấm điểm hoặc phát hiện lỗi phát âm.</p>
+          <section id="pron-compare-panel" class="pron-compare-panel" aria-label="So sánh phát âm" hidden>
+            <h4>🎧 So sánh giọng mẫu và giọng của bạn</h4>
+            <p class="pron-record-help">Nghe A và B nhiều lần, tập trung vào nguyên âm, phụ âm cuối và trọng âm. Không có điểm chấm tự động.</p>
+            <div class="pron-compare-actions">
+              <button type="button" id="btn-pron-compare-sample" class="btn btn-secondary btn-sm">🔊 A · Giọng mẫu</button>
+              <button type="button" id="btn-pron-compare-self" class="btn btn-secondary btn-sm">▶ B · Giọng của tôi</button>
+              <label for="pron-playback-speed">Tốc độ giọng tôi:</label>
+              <select id="pron-playback-speed" aria-label="Chọn tốc độ nghe lại bản ghi">
+                <option value="1">1.0×</option>
+                <option value="0.8">0.8×</option>
+                <option value="0.65">0.65×</option>
+              </select>
+            </div>
+            <p id="pron-compare-status" class="pron-compare-status" role="status" aria-live="polite"></p>
+            <figure class="pron-wave-figure">
+              <figcaption>Dạng sóng bản ghi của bạn (không phải biểu đồ chấm phát âm)</figcaption>
+              <canvas id="pron-user-waveform" height="88" width="640" role="img" aria-label="Dạng sóng biên độ bản ghi của bạn"></canvas>
+              <p id="pron-wave-meta">Đang đọc tín hiệu âm thanh...</p>
+            </figure>
+            <fieldset class="pron-self-check">
+              <legend>Tự kiểm tra sau khi nghe hai giọng</legend>
+              <label><input type="checkbox" class="pron-self-check-item"> Nguyên âm nghe gần giống mẫu</label>
+              <label><input type="checkbox" class="pron-self-check-item"> Phụ âm đầu và cuối nghe rõ</label>
+              <label><input type="checkbox" class="pron-self-check-item"> Trọng âm và nhịp gần giống mẫu</label>
+            </fieldset>
+            <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
+          </section>
+          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Âm thanh của bạn chỉ tồn tại tạm trong trình duyệt và không được gửi đi. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
         </section>
 
         <!-- Image Illustration (TFlat style) -->
