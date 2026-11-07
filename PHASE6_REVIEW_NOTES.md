@@ -23,3 +23,10 @@
 
 - Mốc theo từ Vosk: có thể sai ở tiếng ồn, âm ngắn, hoặc ASR nhận sai từ.
 - Chưa tích hợp MFA và chưa có mốc từng âm vị thực sự. Cần test mô hình, từ điển và căn chỉnh với bản ghi của người học.
+
+## Phase 6.2B pilot notes
+
+- MFA chỉ dùng US acoustic model `english_us_arpa`; phần UK vẫn cần model phù hợp và kiểm thử riêng.
+- Thời gian MFA là forced alignment theo **từ mục tiêu**; nếu đọc sai, MFA vẫn có thể ép âm vào các khoảng thời gian. Chưa phải chấm lỗi phát âm.
+- MFA chạy ngoài `.venv` qua Conda, có thể tạo cache/log tạm trong MFA workspace; không commit dữ liệu âm thanh người dùng.
+- Đợi nghiệm thu thực tế mới tuyên bố tính năng đã hoạt động với MFA thật trên Windows.

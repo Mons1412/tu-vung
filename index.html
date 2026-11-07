@@ -176,7 +176,7 @@
             <button type="button" id="btn-pron-clear" class="btn btn-secondary btn-sm" disabled>🗑️ Xóa bản ghi</button>
             <span id="pron-record-timer" class="pron-record-timer" aria-label="Thời gian ghi âm">00:00 / 00:15</span>
           </div>
-          <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi chỉ được giữ tạm trong trình duyệt và không được tải lên máy chủ.</p>
+          <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi được giữ tạm trong trình duyệt; chỉ gửi tới server local khi bạn nhấn nhận diện hoặc căn chỉnh MFA.</p>
           <audio id="pron-record-playback" controls preload="none" aria-label="Nghe lại giọng của bạn" hidden></audio>
           <section id="pron-compare-panel" class="pron-compare-panel" aria-label="So sánh phát âm" hidden>
             <h4>🎧 So sánh giọng mẫu và giọng của bạn</h4>
@@ -221,10 +221,18 @@
                 <div id="pron-word-timing-track" class="pron-word-timing-track"></div>
                 <p class="pron-word-timing-note">Đây là mốc ước tính theo TỪ, không phải căn chỉnh từng âm vị. Không dùng để đánh giá phát âm đúng/sai.</p>
               </section>
+              <!-- Phase 6.2B pilot: optional MFA US phoneme forced alignment; no grading. -->
+              <section id="pron-phone-alignment" class="pron-phone-alignment" aria-label="Căn chỉnh âm vị MFA thử nghiệm">
+                <h5>🧩 Căn chỉnh từng âm (MFA — thử nghiệm)</h5>
+                <p class="pron-phone-note">Chỉ giọng US. Cần cài MFA trong môi trường Conda riêng. Nhấn nút để căn chỉnh theo từ mục tiêu, không đánh giá âm nào đúng hoặc sai. ARPAbet không phải IPA.</p>
+                <button type="button" id="btn-pron-align" class="btn btn-secondary btn-sm" disabled>🧪 Căn chỉnh âm vị bằng MFA</button>
+                <p id="pron-align-status" role="status" aria-live="polite" class="pron-phone-status">Nhận diện thành công từ US trước để bật tính năng thử nghiệm.</p>
+                <div id="pron-phone-track" class="pron-phone-track" hidden></div>
+              </section>
             </section>
             <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
           </section>
-          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Bản ghi chỉ được gửi tới server trên máy của bạn khi bấm nút nhận diện; server không ghi âm thanh xuống ổ đĩa. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
+          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Bản ghi gửi tới server local khi bạn chủ động nhận diện hoặc yêu cầu MFA; MFA xử lý bằng file tạm, sẽ được xóa khi yêu cầu hoàn tất. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
         </section>
 
         <!-- Image Illustration (TFlat style) -->

@@ -2107,3 +2107,10 @@ button {
 .pron-timing-bar { display: block; position: absolute; top: 1px; bottom: 1px; border-radius: 4px; background: var(--primary,#2563eb); }
 .pron-word-timing-note { font-size: .78rem; line-height: 1.5; color: var(--text-muted); margin: 10px 0 0; }
 @media(max-width:520px){.pron-timing-row{grid-template-columns:1fr;gap:3px;}}
+
+/* Phase 6.2B — optional genuine MFA phoneme forced alignment (no scoring) */
+.pron-phone-alignment { margin-top:12px; padding:12px; border:1px solid var(--border-color,#cbd5e1); border-radius:9px; background:var(--bg-muted); }
+.pron-phone-alignment h5 { margin:0 0 8px; font-size:.93rem; color:var(--text-main); }
+.pron-phone-note, .pron-phone-status { font-size:.82rem; line-height:1.5; color:var(--text-muted); margin:6px 0 10px; }
+.pron-phone-track { margin-top:10px; display:grid; gap:8px; }
+.pron-phone-track[hidden] { display:none !important; }

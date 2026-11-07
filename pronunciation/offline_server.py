@@ -18,6 +18,7 @@ from pathlib import Path
 
 from vosk import KaldiRecognizer, Model, SetLogLevel
 from audio_diagnostics import analyze_wav
+from phoneme_alignment import align_audio_mfa, AlignmentUnavailable, AlignmentFailed
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "models" / "vosk-model-small-en-us-0.15"
@@ -133,7 +134,7 @@ def make_handler(model: Model):
             return None
 
         def do_POST(self):
-            if self.path != "/api/pronunciation/recognize":
+            if self.path not in ("/api/pronunciation/recognize", "/api/pronunciation/align"):
                 return self.send_json(404, {"error": "Không tìm thấy API."})
             if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "audio/wav":
                 return self.send_json(415, {"error": "Chỉ chấp nhận audio/wav."})
@@ -146,10 +147,18 @@ def make_handler(model: Model):
                     return self.send_json(400, {"error": "Từ mục tiêu không hợp lệ."})
                 audio = self.rfile.read(size)
                 diagnostics = analyze_wav(audio)
+                if self.path == "/api/pronunciation/align":
+                    accent = self.headers.get("X-Practice-Accent", "en-US")
+                    aligned = align_audio_mfa(audio, expected, accent)
+                    return self.send_json(200, aligned)
                 detected, word_timing = recognize_with_word_timing(model, audio, expected)
                 needle = normalize(expected)
                 matched = bool(detected and needle and (f" {needle} " in f" {detected} "))
                 return self.send_json(200, {"expected": expected, "recognized": detected, "matched": matched, "recognition_only": True, "recording_quality": diagnostics, "word_timing": word_timing})
+            except AlignmentUnavailable as error:
+                return self.send_json(503, {"error": str(error)})
+            except AlignmentFailed as error:
+                return self.send_json(422, {"error": str(error)})
             except (ValueError, wave.Error, EOFError) as error:
                 return self.send_json(400, {"error": str(error)})
             except Exception:

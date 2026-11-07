@@ -7,7 +7,7 @@
   'use strict';
 
   const MAX_DURATION_MS = 15000;
-  const WAITING_TEXT = 'Bản ghi chỉ được giữ tạm trong trình duyệt và không được tải lên máy chủ.';
+  const WAITING_TEXT = 'Bản ghi được giữ tạm trong trình duyệt; chỉ gửi tới server local khi bạn nhấn nhận diện hoặc căn chỉnh MFA.';
 
   class PronunciationRecorder {
     constructor() {
@@ -49,6 +49,12 @@
       this.timingPanel = document.getElementById('pron-word-timing');
       this.timingResult = document.getElementById('pron-word-timing-result');
       this.timingTrack = document.getElementById('pron-word-timing-track');
+      this.alignButton = document.getElementById('btn-pron-align');
+      this.alignStatus = document.getElementById('pron-align-status');
+      this.phoneTrack = document.getElementById('pron-phone-track');
+      this.alignmentController = null;
+      this.alignmentBusy = false;
+      this.asrMatched = false;
       this.latestBlob = null;
       this.asrController = null;
       this.asrBusy = false;
@@ -70,6 +76,7 @@
       this.selfButton?.addEventListener('click', () => this.playSelf());
       this.retryButton?.addEventListener('click', () => this.start());
       this.asrButton?.addEventListener('click', () => this.recognizeOffline());
+      this.alignButton?.addEventListener('click', () => this.alignPhonemes());
       this.speedSelect?.addEventListener('change', () => {
         if (this.audioElement) this.audioElement.playbackRate = Number(this.speedSelect.value) || 1;
       });
@@ -166,6 +173,9 @@
       this.stopButton.disabled = this.phase !== 'recording';
       this.clearButton.disabled = this.phase === 'idle';
       if (this.asrButton) this.asrButton.disabled = this.phase !== 'ready' || !this.latestBlob || this.asrBusy;
+      if (this.alignButton) this.alignButton.disabled = this.phase !== 'ready' || !this.latestBlob ||
+        !this.asrMatched || !/^[a-z]+(?:'[a-z]+)?$/i.test(this.currentWord) ||
+        this.currentAccent !== 'en-US' || this.alignmentBusy;
     }
 
     static pickMimeType() {
@@ -285,6 +295,7 @@
       this.latestBlob = blob;
       this.clearRecordingQuality();
       this.clearWordTiming();
+      this.clearPhonemeAlignment();
       if (this.asrResult) this.asrResult.textContent = 'Bấm “Kiểm tra máy nghe được gì” để nhận diện offline bằng Vosk.';
       this.objectUrl = URL.createObjectURL(blob);
       this.audioElement.src = this.objectUrl;
@@ -419,6 +430,8 @@
       const word = this.currentWord;
       const accent = this.currentAccent;
       this.asrBusy = true;
+      this.asrMatched = false;
+      this.clearPhonemeAlignment();
       this.refreshButtons();
       if (this.asrResult) this.asrResult.textContent = 'Đang chuyển âm thanh sang WAV và nhận diện trên Windows...';
       const controller = new AbortController();
@@ -465,10 +478,16 @@
         if (this.asrResult) this.asrResult.textContent = `Từ mục tiêu: ${word}\nMáy nhận được: ${detected}\n${notice}\nModel US được dùng để nhận diện cả hai lựa chọn giọng; kết quả không phải điểm phát âm.`;
         this.renderRecordingQuality(data.recording_quality);
         this.renderWordTiming(data.word_timing);
+        this.asrMatched = data.matched;
+        if (this.alignStatus) this.alignStatus.textContent = this.currentAccent !== 'en-US'
+          ? 'Hiện chỉ hỗ trợ mô hình US. Chuyển sang Anh–Mỹ rồi ghi âm lại để thử MFA.'
+          : (data.matched ? 'Có thể thử căn chỉnh âm vị US. Kết quả không phải chấm phát âm.'
+            : 'Vosk chưa nhận ra từ mục tiêu. Thử ghi âm lại trước khi căn chỉnh MFA.');
       } catch (error) {
         if (generation !== this.generation || controller.signal.aborted) return;
         this.clearRecordingQuality();
         this.clearWordTiming();
+        this.clearPhonemeAlignment();
         const message = error instanceof TypeError
           ? 'Không kết nối được Vosk local. Hãy chạy server bằng Python thay vì http-server.'
           : (error?.message || 'Không thể nhận diện bản ghi.');
@@ -480,6 +499,89 @@
           this.refreshButtons();
         }
       }
+    }
+
+    clearPhonemeAlignment() {
+      if (this.alignmentController) this.alignmentController.abort();
+      this.alignmentController = null;
+      this.alignmentBusy = false;
+      this.asrMatched = false;
+      if (this.phoneTrack) { this.phoneTrack.hidden = true; this.phoneTrack.replaceChildren(); }
+      if (this.alignStatus) this.alignStatus.textContent = 'Nhận diện thành công từ US trước để bật tính năng thử nghiệm.';
+    }
+
+    async alignPhonemes() {
+      if (this.phase !== 'ready' || !this.latestBlob || !this.asrMatched || this.alignmentBusy || this.currentAccent !== 'en-US') return;
+      const generation = this.generation;
+      const controller = new AbortController();
+      this.alignmentController = controller;
+      this.alignmentBusy = true;
+      if (this.phoneTrack) { this.phoneTrack.hidden = true; this.phoneTrack.replaceChildren(); }
+      if (this.alignStatus) this.alignStatus.textContent = 'MFA đang căn chỉnh theo từ mục tiêu trên máy local...';
+      this.refreshButtons();
+      try {
+        const wav = await PronunciationRecorder.encodeWav(this.latestBlob);
+        if (generation !== this.generation || controller.signal.aborted) return;
+        const response = await fetch('/api/pronunciation/align', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'audio/wav',
+            'X-Expected-Word': encodeURIComponent(this.currentWord),
+            'X-Practice-Accent': this.currentAccent
+          },
+          body: wav, signal: controller.signal, cache: 'no-store'
+        });
+        const raw = await response.text();
+        let data;
+        try { data = JSON.parse(raw); }
+        catch (_) { throw new Error(`MFA trả dữ liệu không phải JSON (HTTP ${response.status}).`); }
+        if (!response.ok) throw new Error(data.error || `MFA HTTP ${response.status}`);
+        if (generation !== this.generation || controller.signal.aborted) return;
+        this.renderPhonemeAlignment(data);
+      } catch (error) {
+        if (generation !== this.generation || controller.signal.aborted) return;
+        if (this.alignStatus) this.alignStatus.textContent = `Chưa căn chỉnh được: ${error?.message || 'Lỗi kết nối MFA.'}`;
+      } finally {
+        if (this.alignmentController === controller) this.alignmentController = null;
+        if (generation === this.generation) {
+          this.alignmentBusy = false;
+          this.refreshButtons();
+        }
+      }
+    }
+
+    renderPhonemeAlignment(data) {
+      if (!this.phoneTrack || !this.alignStatus) return;
+      if (!data || data.source !== 'montreal_forced_aligner' || data.status !== 'aligned' ||
+          data.phoneme_level_only !== true || data.pronunciation_score !== null ||
+          data.phone_set !== 'ARPABET' || data.model_accent !== 'en-US' ||
+          !Number.isFinite(data.duration_s) || data.duration_s <= 0 || !Array.isArray(data.intervals)) {
+        throw new Error('MFA trả kết quả không đúng định dạng.');
+      }
+      const intervals = data.intervals.filter(item => item && typeof item.phone === 'string' &&
+        /^[A-Za-z][A-Za-z0-9_]*$/.test(item.phone) &&
+        Number.isFinite(item.start_s) && Number.isFinite(item.end_s) &&
+        item.start_s >= 0 && item.end_s > item.start_s && item.end_s <= data.duration_s + 0.01).slice(0, 40);
+      if (!intervals.length) throw new Error('MFA chưa trả được khoảng thời gian âm vị nào.');
+      this.phoneTrack.replaceChildren();
+      for (const item of intervals) {
+        const row = document.createElement('div');
+        row.className = 'pron-timing-row';
+        const label = document.createElement('span');
+        label.className = 'pron-timing-label';
+        label.textContent = `${item.phone} · ${item.start_s.toFixed(2)}–${item.end_s.toFixed(2)}s`;
+        const track = document.createElement('div');
+        track.className = 'pron-timing-bar-track';
+        const bar = document.createElement('span');
+        bar.className = 'pron-timing-bar';
+        bar.style.left = `${(item.start_s / data.duration_s) * 100}%`;
+        bar.style.width = `${Math.max(0.5, ((item.end_s - item.start_s) / data.duration_s) * 100)}%`;
+        track.appendChild(bar);
+        row.append(label, track);
+        this.phoneTrack.appendChild(row);
+      }
+      this.phoneTrack.hidden = false;
+      this.alignStatus.textContent = `MFA ước tính ${intervals.length} khoảng âm theo ARPAbet (US). Đây là căn chỉnh theo từ mục tiêu, không xác nhận bạn phát âm đúng.`;
     }
 
     clearRecordingQuality() {
@@ -562,12 +664,15 @@
 
     discardAudio() {
       if (this.asrController) this.asrController.abort();
+      if (this.alignmentController) this.alignmentController.abort();
+      this.alignmentController = null;
       this.asrController = null;
       this.asrBusy = false;
       this.latestBlob = null;
       if (this.asrResult) this.asrResult.textContent = 'Ghi âm xong rồi nhấn kiểm tra. Không gửi bản ghi lên cloud.';
       this.clearRecordingQuality();
       this.clearWordTiming();
+      this.clearPhonemeAlignment();
       this.audioElement.pause();
       this.audioElement.removeAttribute('src');
       this.audioElement.hidden = true;
