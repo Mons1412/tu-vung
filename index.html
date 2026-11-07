@@ -187,9 +187,15 @@
               <label><input type="checkbox" class="pron-self-check-item"> Phụ âm đầu và cuối nghe rõ</label>
               <label><input type="checkbox" class="pron-self-check-item"> Trọng âm và nhịp gần giống mẫu</label>
             </fieldset>
+            <section id="pron-asr-panel" class="pron-asr-panel" aria-label="Nhận diện giọng nói offline">
+              <h4>🧠 AI nhận diện từ (local)</h4>
+              <p class="pron-record-help">Dùng Vosk trên máy Windows để xem máy đã nghe ra từ nào. Đây <strong>không phải</strong> điểm chấm phát âm hoặc đánh giá Anh–Anh/Anh–Mỹ.</p>
+              <button type="button" id="btn-pron-asr" class="btn btn-secondary btn-sm" disabled>🔍 Kiểm tra máy nghe được gì</button>
+              <p id="pron-asr-result" class="pron-asr-result" role="status" aria-live="polite">Ghi âm xong rồi nhấn kiểm tra. Âm thanh chỉ gửi tới server local khi bạn chủ động nhấn nút.</p>
+            </section>
             <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
           </section>
-          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Âm thanh của bạn chỉ tồn tại tạm trong trình duyệt và không được gửi đi. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
+          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Bản ghi chỉ được gửi tới server trên máy của bạn khi bấm nút nhận diện; server không ghi âm thanh xuống ổ đĩa. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
         </section>
 
         <!-- Image Illustration (TFlat style) -->

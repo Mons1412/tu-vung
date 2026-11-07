@@ -2046,3 +2046,9 @@ button {
 .pron-self-check label { display: flex; align-items: flex-start; gap: 9px; font-size: .88rem; line-height: 1.4; color: var(--text-main); cursor: pointer; }
 .pron-self-check input { margin-top: 3px; flex-shrink: 0; }
 @media(max-width:520px){.pron-compare-actions button { flex: 1 1 120px; }}
+
+/* Phase 4: Offline recognition (not pronunciation scoring) */
+.pron-asr-panel { margin-top: 14px; padding: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 10px; }
+.pron-asr-panel h4 { margin: 0 0 8px; font-size: 1rem; }
+.pron-asr-panel .btn { margin-bottom: 8px; }
+.pron-asr-result { margin: 4px 0; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }

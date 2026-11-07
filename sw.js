@@ -1,4 +1,4 @@
-const CACHE_NAME = "vocamini-cache-v4";
+const CACHE_NAME = "vocamini-cache-v6";
 const urlsToCache = [
   "./",
   "./index.html",
@@ -21,6 +21,10 @@ self.addEventListener("install", event => {
 });
 
 self.addEventListener("fetch", event => {
+  // Always let the browser send recognition requests directly to the local Vosk API.
+  // The cache only contains static GET resources, never responses from /api/.
+  const requestUrl = new URL(event.request.url);
+  if (event.request.method !== 'GET' || requestUrl.pathname.startsWith('/api/')) return;
   event.respondWith(
     caches.match(event.request)
       .then(response => {

@@ -42,6 +42,11 @@
       this.compareStatus = document.getElementById('pron-compare-status');
       this.waveform = document.getElementById('pron-user-waveform');
       this.waveMeta = document.getElementById('pron-wave-meta');
+      this.asrButton = document.getElementById('btn-pron-asr');
+      this.asrResult = document.getElementById('pron-asr-result');
+      this.latestBlob = null;
+      this.asrController = null;
+      this.asrBusy = false;
     }
 
     init() {
@@ -59,6 +64,7 @@
       this.sampleButton?.addEventListener('click', () => this.playSample());
       this.selfButton?.addEventListener('click', () => this.playSelf());
       this.retryButton?.addEventListener('click', () => this.start());
+      this.asrButton?.addEventListener('click', () => this.recognizeOffline());
       this.speedSelect?.addEventListener('change', () => {
         if (this.audioElement) this.audioElement.playbackRate = Number(this.speedSelect.value) || 1;
       });
@@ -144,6 +150,7 @@
       this.recordButton.disabled = !(this.phase === 'idle' || this.phase === 'ready');
       this.stopButton.disabled = this.phase !== 'recording';
       this.clearButton.disabled = this.phase === 'idle';
+      if (this.asrButton) this.asrButton.disabled = this.phase !== 'ready' || !this.latestBlob || this.asrBusy;
     }
 
     static pickMimeType() {
@@ -260,6 +267,8 @@
 
       const contentType = session.recorder.mimeType || session.chunks[0].type || 'application/octet-stream';
       const blob = new Blob(session.chunks, { type: contentType });
+      this.latestBlob = blob;
+      if (this.asrResult) this.asrResult.textContent = 'Bấm “Kiểm tra máy nghe được gì” để nhận diện offline bằng Vosk.';
       this.objectUrl = URL.createObjectURL(blob);
       this.audioElement.src = this.objectUrl;
       this.audioElement.hidden = false;
@@ -352,6 +361,106 @@
       }
     }
 
+    static async encodeWav(blob) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!AudioCtx || !OfflineCtx) throw new Error('Trình duyệt không hỗ trợ chuyển âm thanh WAV.');
+      const context = new AudioCtx();
+      let decoded;
+      try {
+        decoded = await context.decodeAudioData(await blob.arrayBuffer());
+      } finally {
+        await context.close().catch(() => {});
+      }
+      if (!decoded.duration || decoded.duration > 16) throw new Error('Bản ghi cần dài từ 0 đến 15 giây.');
+      const sampleRate = 16000;
+      const offline = new OfflineCtx(1, Math.ceil(decoded.duration * sampleRate), sampleRate);
+      const source = offline.createBufferSource();
+      source.buffer = decoded;
+      source.connect(offline.destination);
+      source.start(0);
+      const rendered = await offline.startRendering();
+      const pcm = rendered.getChannelData(0);
+      const bytes = new ArrayBuffer(44 + pcm.length * 2);
+      const view = new DataView(bytes);
+      const str = (offset, text) => { for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i)); };
+      str(0, 'RIFF'); view.setUint32(4, 36 + pcm.length * 2, true); str(8, 'WAVE');
+      str(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, pcm.length * 2, true);
+      for (let i = 0; i < pcm.length; i++) {
+        const sample = Math.max(-1, Math.min(1, pcm[i]));
+        view.setInt16(44 + i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      }
+      return new Blob([bytes], { type: 'audio/wav' });
+    }
+
+    async recognizeOffline() {
+      if (this.phase !== 'ready' || !this.latestBlob || this.asrBusy) return;
+      const generation = this.generation;
+      const word = this.currentWord;
+      const accent = this.currentAccent;
+      this.asrBusy = true;
+      this.refreshButtons();
+      if (this.asrResult) this.asrResult.textContent = 'Đang chuyển âm thanh sang WAV và nhận diện trên Windows...';
+      const controller = new AbortController();
+      this.asrController = controller;
+      try {
+        const wav = await PronunciationRecorder.encodeWav(this.latestBlob);
+        if (generation !== this.generation || controller.signal.aborted) return;
+        const response = await fetch('/api/pronunciation/recognize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'audio/wav',
+            'X-Expected-Word': encodeURIComponent(word),
+            'X-Practice-Accent': accent
+          },
+          body: wav,
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        // Read the response only once. A 200 response may still be empty or malformed.
+        const raw = await response.text();
+        let data;
+        try {
+          data = raw.trim() ? JSON.parse(raw) : null;
+        } catch (_) {
+          console.warn('Vosk API invalid JSON:', {
+            status: response.status,
+            contentType: response.headers.get('content-type'),
+            responseBytes: raw.length
+          });
+          throw new Error(`API nhận diện trả JSON không hợp lệ (HTTP ${response.status}). Mở F12 → Network → recognize → Response để kiểm tra.`);
+        }
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          throw new Error(`API nhận diện trả nội dung rỗng hoặc không đúng định dạng (HTTP ${response.status}). Kiểm tra F12 → Network → recognize.`);
+        }
+        if (!response.ok) throw new Error(data.error || `API nhận diện lỗi HTTP ${response.status}`);
+        if (typeof data.recognized !== 'string' || typeof data.matched !== 'boolean') {
+          throw new Error('API nhận diện thiếu trường recognized hoặc matched. Kiểm tra F12 → Network → recognize.');
+        }
+        if (generation !== this.generation || controller.signal.aborted) return;
+        const detected = data.recognized || '(không nhận diện được)';
+        const notice = data.matched
+          ? 'Máy nhận ra từ mục tiêu. Hãy tiếp tục nghe A/B để tự kiểm tra các âm.'
+          : 'Máy chưa nhận đúng từ mục tiêu. Có thể do phát âm, tiếng ồn hoặc giới hạn của ASR.';
+        if (this.asrResult) this.asrResult.textContent = `Từ mục tiêu: ${word}\nMáy nhận được: ${detected}\n${notice}\nModel US được dùng để nhận diện cả hai lựa chọn giọng; kết quả không phải điểm phát âm.`;
+      } catch (error) {
+        if (generation !== this.generation || controller.signal.aborted) return;
+        const message = error instanceof TypeError
+          ? 'Không kết nối được Vosk local. Hãy chạy server bằng Python thay vì http-server.'
+          : (error?.message || 'Không thể nhận diện bản ghi.');
+        if (this.asrResult) this.asrResult.textContent = `Chưa nhận diện được: ${message}`;
+      } finally {
+        if (this.asrController === controller) this.asrController = null;
+        if (generation === this.generation) {
+          this.asrBusy = false;
+          this.refreshButtons();
+        }
+      }
+    }
+
     clearTimers() {
       if (this.intervalId !== null) window.clearInterval(this.intervalId);
       if (this.timeoutId !== null) window.clearTimeout(this.timeoutId);
@@ -360,6 +469,11 @@
     }
 
     discardAudio() {
+      if (this.asrController) this.asrController.abort();
+      this.asrController = null;
+      this.asrBusy = false;
+      this.latestBlob = null;
+      if (this.asrResult) this.asrResult.textContent = 'Ghi âm xong rồi nhấn kiểm tra. Không gửi bản ghi lên cloud.';
       this.audioElement.pause();
       this.audioElement.removeAttribute('src');
       this.audioElement.hidden = true;
