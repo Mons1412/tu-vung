@@ -18,3 +18,8 @@
 - Có bước tái hiện cho mỗi lỗi, có kiểm thử sau sửa.
 - Các thay đổi giao diện được kiểm tra cả Windows desktop và màn hình điện thoại.
 - Không hứa chấm âm vị nếu chưa có dữ liệu hoặc mô hình đã kiểm chứng.
+
+## Phase 6.2A notes
+
+- Mốc theo từ Vosk: có thể sai ở tiếng ồn, âm ngắn, hoặc ASR nhận sai từ.
+- Chưa tích hợp MFA và chưa có mốc từng âm vị thực sự. Cần test mô hình, từ điển và căn chỉnh với bản ghi của người học.

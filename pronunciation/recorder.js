@@ -46,6 +46,9 @@
       this.asrResult = document.getElementById('pron-asr-result');
       this.qualityPanel = document.getElementById('pron-audio-quality');
       this.qualityResult = document.getElementById('pron-audio-quality-result');
+      this.timingPanel = document.getElementById('pron-word-timing');
+      this.timingResult = document.getElementById('pron-word-timing-result');
+      this.timingTrack = document.getElementById('pron-word-timing-track');
       this.latestBlob = null;
       this.asrController = null;
       this.asrBusy = false;
@@ -281,6 +284,7 @@
       const blob = new Blob(session.chunks, { type: contentType });
       this.latestBlob = blob;
       this.clearRecordingQuality();
+      this.clearWordTiming();
       if (this.asrResult) this.asrResult.textContent = 'Bấm “Kiểm tra máy nghe được gì” để nhận diện offline bằng Vosk.';
       this.objectUrl = URL.createObjectURL(blob);
       this.audioElement.src = this.objectUrl;
@@ -460,9 +464,11 @@
           : 'Máy chưa nhận đúng từ mục tiêu. Có thể do phát âm, tiếng ồn hoặc giới hạn của ASR.';
         if (this.asrResult) this.asrResult.textContent = `Từ mục tiêu: ${word}\nMáy nhận được: ${detected}\n${notice}\nModel US được dùng để nhận diện cả hai lựa chọn giọng; kết quả không phải điểm phát âm.`;
         this.renderRecordingQuality(data.recording_quality);
+        this.renderWordTiming(data.word_timing);
       } catch (error) {
         if (generation !== this.generation || controller.signal.aborted) return;
         this.clearRecordingQuality();
+        this.clearWordTiming();
         const message = error instanceof TypeError
           ? 'Không kết nối được Vosk local. Hãy chạy server bằng Python thay vì http-server.'
           : (error?.message || 'Không thể nhận diện bản ghi.');
@@ -503,6 +509,50 @@
       this.qualityPanel.hidden = false;
     }
 
+    clearWordTiming() {
+      if (this.timingPanel) this.timingPanel.hidden = true;
+      if (this.timingResult) this.timingResult.textContent = '';
+      if (this.timingTrack) this.timingTrack.replaceChildren();
+    }
+
+    renderWordTiming(timing) {
+      if (!this.timingPanel || !this.timingResult || !this.timingTrack) return;
+      this.clearWordTiming();
+      if (!timing || timing.source !== 'vosk_word_timestamps' || timing.word_level_only !== true ||
+          !Number.isFinite(timing.duration_s) || timing.duration_s <= 0 ||
+          !Array.isArray(timing.intervals)) return;
+      const duration = timing.duration_s;
+      const intervals = timing.intervals.filter(item => item && typeof item.word === 'string' &&
+        /^[a-z']+$/.test(item.word) && Number.isFinite(item.start_s) && Number.isFinite(item.end_s) &&
+        item.start_s >= 0 && item.end_s > item.start_s && item.end_s <= duration + 0.01).slice(0, 20);
+      this.timingPanel.hidden = false;
+      if (!intervals.length) {
+        this.timingResult.textContent = 'Vosk chưa trả về mốc thời gian đáng tin cậy cho bản ghi này. Hãy thử đọc rõ hơn và ghi lại.';
+        return;
+      }
+      this.timingResult.textContent = `Độ dài bản ghi: ${duration.toFixed(2)} giây. Mốc thời gian theo từng TỪ do Vosk ước tính:`;
+      for (const item of intervals) {
+        const row = document.createElement('div');
+        row.className = 'pron-timing-row';
+        const label = document.createElement('span');
+        label.className = 'pron-timing-label';
+        label.textContent = `${item.word} · ${item.start_s.toFixed(2)}–${item.end_s.toFixed(2)}s`;
+        const track = document.createElement('div');
+        track.className = 'pron-timing-bar-track';
+        const bar = document.createElement('span');
+        bar.className = 'pron-timing-bar';
+        bar.style.left = `${(item.start_s / duration) * 100}%`;
+        bar.style.width = `${Math.max(0.5, ((item.end_s - item.start_s) / duration) * 100)}%`;
+        track.appendChild(bar);
+        row.append(label, track);
+        this.timingTrack.appendChild(row);
+      }
+      if (timing.expected_span && Number.isFinite(timing.expected_span.start_s) &&
+          Number.isFinite(timing.expected_span.end_s)) {
+        this.timingResult.textContent += `\nTừ mục tiêu xuất hiện khoảng ${timing.expected_span.start_s.toFixed(2)}–${timing.expected_span.end_s.toFixed(2)} giây.`;
+      }
+    }
+
     clearTimers() {
       if (this.intervalId !== null) window.clearInterval(this.intervalId);
       if (this.timeoutId !== null) window.clearTimeout(this.timeoutId);
@@ -517,6 +567,7 @@
       this.latestBlob = null;
       if (this.asrResult) this.asrResult.textContent = 'Ghi âm xong rồi nhấn kiểm tra. Không gửi bản ghi lên cloud.';
       this.clearRecordingQuality();
+      this.clearWordTiming();
       this.audioElement.pause();
       this.audioElement.removeAttribute('src');
       this.audioElement.hidden = true;

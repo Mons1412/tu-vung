@@ -2094,3 +2094,16 @@ button {
 .pron-audio-quality h5 { font-size: .94rem; color: var(--text-main); margin: 0 0 8px; }
 .pron-audio-quality-result { white-space: pre-line; font-size: .86rem; line-height: 1.55; color: var(--text-main); overflow-wrap: anywhere; }
 .pron-audio-quality-note { font-size: .78rem; color: var(--text-muted); margin: 8px 0 0; }
+
+/* Phase 6.2a — word-level timing from Vosk, not phoneme-level alignment */
+.pron-word-timing[hidden] { display: none !important; }
+.pron-word-timing { margin-top: 12px; padding: 12px; border: 1px solid var(--border-color,#cbd5e1); border-radius: 9px; background: var(--bg-muted); }
+.pron-word-timing h5 { margin: 0 0 9px; font-size: .93rem; color: var(--text-main); }
+.pron-word-timing-result { white-space: pre-line; font-size: .86rem; line-height: 1.5; color: var(--text-main); }
+.pron-word-timing-track { display: grid; gap: 9px; margin-top: 8px; }
+.pron-timing-row { display: grid; grid-template-columns: minmax(100px,1fr) 2fr; gap: 9px; align-items: center; }
+.pron-timing-label { overflow-wrap: anywhere; font-size: .82rem; color: var(--text-main); }
+.pron-timing-bar-track { position: relative; height: 14px; border-radius: 6px; background: var(--input-bg,#edf2f7); border: 1px solid var(--border-color,#cbd5e1); overflow: hidden; }
+.pron-timing-bar { display: block; position: absolute; top: 1px; bottom: 1px; border-radius: 4px; background: var(--primary,#2563eb); }
+.pron-word-timing-note { font-size: .78rem; line-height: 1.5; color: var(--text-muted); margin: 10px 0 0; }
+@media(max-width:520px){.pron-timing-row{grid-template-columns:1fr;gap:3px;}}

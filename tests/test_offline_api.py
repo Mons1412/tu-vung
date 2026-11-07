@@ -21,10 +21,12 @@ sys.path.insert(0, str(PROJECT / 'pronunciation'))
 class FakeRecognizer:
     def __init__(self, model, sample_rate):
         self.sample_rate = sample_rate
+    def SetWords(self, enabled):
+        self.words = enabled
     def AcceptWaveform(self, chunk):
         return False
     def FinalResult(self):
-        return '{"text":"water"}'
+        return '{"text":"water","result":[{"word":"water","start":0.12,"end":0.83,"conf":0.98}]}'
     def Result(self):
         return '{"text":""}'
 
@@ -79,6 +81,8 @@ class OfflineAPIContractTest(unittest.TestCase):
         self.assertTrue(data['recognition_only'])
         self.assertEqual(data['recording_quality']['duration_s'], 1.0)
         self.assertTrue(data['recording_quality']['recording_quality_only'])
+        self.assertTrue(data['word_timing']['word_level_only'])
+        self.assertEqual(data['word_timing']['expected_span'], {'start_s': 0.12, 'end_s': 0.83})
 
     def test_invalid_wav_returns_json_error(self):
         req = urllib.request.Request(

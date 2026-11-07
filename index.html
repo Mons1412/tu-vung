@@ -214,6 +214,13 @@
                 <p id="pron-audio-quality-result" class="pron-audio-quality-result"></p>
                 <p class="pron-audio-quality-note">Chỉ kiểm tra mức âm lượng, thời lượng và clipping. Không chấm phát âm, không nhận biết lỗi âm vị hoặc giọng UK/US.</p>
               </section>
+              <!-- Phase 6.2a: Vosk estimates word timestamps, not phoneme boundaries. -->
+              <section id="pron-word-timing" class="pron-word-timing" aria-label="Mốc thời gian nhận diện từ" aria-live="polite" hidden>
+                <h5>⏱️ Mốc thời gian từng từ (Vosk)</h5>
+                <p id="pron-word-timing-result" class="pron-word-timing-result"></p>
+                <div id="pron-word-timing-track" class="pron-word-timing-track"></div>
+                <p class="pron-word-timing-note">Đây là mốc ước tính theo TỪ, không phải căn chỉnh từng âm vị. Không dùng để đánh giá phát âm đúng/sai.</p>
+              </section>
             </section>
             <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
           </section>
