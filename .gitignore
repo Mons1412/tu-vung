@@ -19,3 +19,12 @@ android/.idea/
 
 .DS_Store
 Thumbs.db
+
+# Phase 4 offline speech recognition
+.venv/
+models/
+__pycache__/
+*.pyc
+
+.venv/
+models/

@@ -1968,3 +1968,149 @@ button {
   }
 }
 
+
+/* Pronunciation Coach — accent selection (Phase 1) */
+.pron-accent-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.pron-accent-control select {
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--bg-card, var(--bg-main, white));
+  font: inherit;
+}
+.pron-accent-control select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.pron-accent-status {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+
+/* Phase 2 - Pronunciation recorder (US/UK selection inherited from Phase 1) */
+.pron-recorder-entry { margin: 0 0 14px; }
+.pron-record-panel[hidden], .pron-record-panel audio[hidden] { display: none !important; }
+.pron-record-panel {
+  margin: 0 0 20px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+}
+.pron-record-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+.pron-record-head h3 { color: var(--text-main); font-size: 1rem; margin-bottom: 5px; }
+.pron-record-description { color: var(--text-muted); font-size: .9rem; }
+.pron-record-description strong { color: var(--text-main); overflow-wrap: anywhere; }
+.pron-record-help, .pron-record-disclaimer { font-size: .84rem; color: var(--text-muted); margin-top: 12px; }
+.pron-record-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.pron-record-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.pron-record-timer { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: .9rem; }
+.pron-record-status { color: var(--text-main); margin-top: 14px; font-size: .9rem; min-height: 1.3em; }
+.pron-record-panel audio { display: block; margin-top: 12px; width: 100%; max-width: 540px; }
+@media (max-width: 540px) {
+  .pron-record-panel { padding: 14px; }
+  .pron-record-head { flex-wrap: wrap; }
+  .pron-record-actions button { flex: 1 1 auto; min-height: 40px; }
+  .pron-record-timer { width: 100%; }
+}
+
+
+/* Phase 3 Free: local listen-and-compare (no Azure/automatic scoring). */
+.pron-compare-panel[hidden] { display: none !important; }
+.pron-compare-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color, #d6dce5); }
+.pron-compare-panel h4 { font-size: 1rem; color: var(--text-main); }
+.pron-compare-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.pron-compare-actions button { min-height: 40px; }
+.pron-compare-actions label { font-size: .85rem; color: var(--text-muted); }
+.pron-compare-actions select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--border-color,#a5a9b4); border-radius: 7px; background: var(--card-bg,#fff); color: var(--text-main); }
+.pron-compare-status { color: var(--text-muted); margin-top: 8px; font-size: .84rem; min-height: 1.25em; }
+.pron-wave-figure { margin: 15px 0; }
+.pron-wave-figure figcaption { font-size: .84rem; color: var(--text-main); font-weight: 600; margin-bottom: 8px; }
+.pron-wave-figure canvas { display: block; width: 100%; max-width: 640px; height: 88px; border-radius: 8px; background: var(--input-bg,#f4f7fa); border: 1px solid var(--border-color,#d6dce5); }
+#pron-wave-meta { font-size: .8rem; margin-top: 4px; color: var(--text-muted); }
+.pron-self-check { margin: 12px 0; padding: 10px; border: 1px solid var(--border-color,#d6dce5); border-radius: 8px; display: grid; gap: 9px; }
+.pron-self-check legend { font-size: .85rem; font-weight: 600; padding: 0 5px; }
+.pron-self-check label { display: flex; align-items: flex-start; gap: 9px; font-size: .88rem; line-height: 1.4; color: var(--text-main); cursor: pointer; }
+.pron-self-check input { margin-top: 3px; flex-shrink: 0; }
+@media(max-width:520px){.pron-compare-actions button { flex: 1 1 120px; }}
+
+/* Phase 4: Offline recognition (not pronunciation scoring) */
+.pron-asr-panel { margin-top: 14px; padding: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 10px; }
+.pron-asr-panel h4 { margin: 0 0 8px; font-size: 1rem; }
+.pron-asr-panel .btn { margin-bottom: 8px; }
+.pron-asr-result { margin: 4px 0; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+
+
+/* Phase 5 - Guided Minimal Pairs */
+.pron-minimal-pairs {
+  margin-top: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-color, #d6dce5);
+  border-radius: 10px;
+  background: var(--card-bg, transparent);
+}
+.pron-minimal-pairs h4 { color: var(--text-main); margin: 0 0 8px; font-size: 1rem; }
+.pron-minimal-pairs .pron-record-help { margin: 0 0 12px; }
+.pron-pair-label { display: block; font-size: .88rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main); }
+.pron-pair-select { display: block; width: 100%; min-height: 42px; margin-bottom: 12px; padding: 8px; border: 1px solid var(--border-color, #d6dce5); border-radius: 8px; color: var(--text-main); background: var(--input-bg, #fff); }
+.pron-pair-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pron-pair-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 12px; border: 1px solid var(--border-color, #d6dce5); border-radius: 9px; }
+.pron-pair-card strong { color: var(--text-main); font-size: 1.2rem; overflow-wrap: anywhere; }
+.pron-pair-ipa { font-size: 1rem; font-weight: 600; color: var(--primary); }
+.pron-pair-meaning { font-size: .85rem; color: var(--text-muted); }
+.pron-pair-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; }
+.pron-pair-actions button { min-height: 38px; white-space: normal; }
+.pron-pair-guide { margin-top: 12px; padding: 11px 13px; border-radius: 8px; background: var(--bg-muted); color: var(--text-main); font-size: .88rem; line-height: 1.5; }
+.pron-pair-guide p { margin: 6px 0 8px; }
+.pron-pair-guide ul { padding-left: 20px; margin: 6px 0 0; }
+.pron-pair-guide li + li { margin-top: 5px; }
+.pron-pair-status { margin-top: 10px; font-size: .83rem; color: var(--text-main); min-height: 1.25em; overflow-wrap: anywhere; }
+.pron-pair-note { margin-top: 8px; color: var(--text-muted); font-size: .8rem; }
+@media (max-width: 540px) {
+  .pron-minimal-pairs { padding: 10px; }
+  .pron-pair-cards { grid-template-columns: 1fr; }
+  .pron-pair-actions { width: 100%; }
+  .pron-pair-actions button { flex: 1 1 120px; }
+}
+
+
+/* Phase 6.1 — audio recording quality hints, not phoneme scoring. */
+.pron-audio-quality[hidden] { display: none !important; }
+.pron-audio-quality { margin: 12px 0 0; padding: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 9px; background: var(--bg-muted); }
+.pron-audio-quality h5 { font-size: .94rem; color: var(--text-main); margin: 0 0 8px; }
+.pron-audio-quality-result { white-space: pre-line; font-size: .86rem; line-height: 1.55; color: var(--text-main); overflow-wrap: anywhere; }
+.pron-audio-quality-note { font-size: .78rem; color: var(--text-muted); margin: 8px 0 0; }
+
+/* Phase 6.2a — word-level timing from Vosk, not phoneme-level alignment */
+.pron-word-timing[hidden] { display: none !important; }
+.pron-word-timing { margin-top: 12px; padding: 12px; border: 1px solid var(--border-color,#cbd5e1); border-radius: 9px; background: var(--bg-muted); }
+.pron-word-timing h5 { margin: 0 0 9px; font-size: .93rem; color: var(--text-main); }
+.pron-word-timing-result { white-space: pre-line; font-size: .86rem; line-height: 1.5; color: var(--text-main); }
+.pron-word-timing-track { display: grid; gap: 9px; margin-top: 8px; }
+.pron-timing-row { display: grid; grid-template-columns: minmax(100px,1fr) 2fr; gap: 9px; align-items: center; }
+.pron-timing-label { overflow-wrap: anywhere; font-size: .82rem; color: var(--text-main); }
+.pron-timing-bar-track { position: relative; height: 14px; border-radius: 6px; background: var(--input-bg,#edf2f7); border: 1px solid var(--border-color,#cbd5e1); overflow: hidden; }
+.pron-timing-bar { display: block; position: absolute; top: 1px; bottom: 1px; border-radius: 4px; background: var(--primary,#2563eb); }
+.pron-word-timing-note { font-size: .78rem; line-height: 1.5; color: var(--text-muted); margin: 10px 0 0; }
+@media(max-width:520px){.pron-timing-row{grid-template-columns:1fr;gap:3px;}}
+
+/* Phase 6.2B — optional genuine MFA phoneme forced alignment (no scoring) */
+.pron-phone-alignment { margin-top:12px; padding:12px; border:1px solid var(--border-color,#cbd5e1); border-radius:9px; background:var(--bg-muted); }
+.pron-phone-alignment h5 { margin:0 0 8px; font-size:.93rem; color:var(--text-main); }
+.pron-phone-note, .pron-phone-status { font-size:.82rem; line-height:1.5; color:var(--text-muted); margin:6px 0 10px; }
+.pron-phone-track { margin-top:10px; display:grid; gap:8px; }
+.pron-phone-track[hidden] { display:none !important; }

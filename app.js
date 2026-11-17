@@ -11,6 +11,7 @@
   // =========================================================================
   const STORAGE_KEY = 'vocamini_app_data_v1';
   const THEME_KEY = 'vocamini_theme';
+  const ACCENT_KEY = 'vocamini_pron_accent_v1';
 
   // Seed Data: 2 notebooks with high-frequency vocabulary
   const DEFAULT_DATA = {
@@ -460,6 +461,31 @@
   // 2. AUDIO & SOUND EFFECTS MODULE (Web Audio API + Web Speech)
   // =========================================================================
   class SoundService {
+    static getAccent() {
+      try {
+        return localStorage.getItem(ACCENT_KEY) === 'en-GB' ? 'en-GB' : 'en-US';
+      } catch (e) {
+        return 'en-US';
+      }
+    }
+
+    static setAccent(accent) {
+      if (accent !== 'en-US' && accent !== 'en-GB') return;
+      try { localStorage.setItem(ACCENT_KEY, accent); } catch (e) {}
+      this.voiceRequestId = (this.voiceRequestId || 0) + 1;
+      this.playSession = (this.playSession || 0) + 1;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      if (this.currentAudio) {
+        try { this.currentAudio.pause(); } catch (e) {}
+        this.currentAudio = null;
+      }
+    }
+
+    static showAccentStatus(message) {
+      const el = document.getElementById('pron-accent-status');
+      if (el) el.textContent = message;
+    }
+
     static initAudioContext() {
       if (!this.audioCtx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -551,27 +577,23 @@
         this.currentAudio = null;
       }
 
-      // Tầng 1: Nếu có audioUrl từ từ điển API
-      if (customAudioUrl && typeof customAudioUrl === 'string' && customAudioUrl.startsWith('http')) {
-        this.playHtmlAudio(customAudioUrl, () => {
-          this.playOnlineTts(cleanWord, rate);
-        });
-        return;
-      }
-
-      // Tầng 2 & 3 & 4
-      this.playOnlineTts(cleanWord, rate);
+      // Không dùng customAudioUrl: API từ điển chưa gắn nhãn locale đáng tin cậy.
+      // Đảm bảo lựa chọn US/UK áp dụng nhất quán ở mọi trang.
+      const session = (this.playSession || 0) + 1;
+      this.playSession = session;
+      this.voiceRequestId = (this.voiceRequestId || 0) + 1;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      this.playOnlineTts(cleanWord, rate, session);
     }
 
-    static playOnlineTts(word, rate) {
-      // Type 2 = US English (giọng Mỹ chuẩn chất lượng cao)
-      const primaryUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`;
-      const backupUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(word)}`;
-
+    static playOnlineTts(word, rate, session) {
+      const accent = this.getAccent();
+      // Youdao: type=1 UK, type=2 US. Có thể lỗi mạng: dùng giọng trình duyệt đúng locale.
+      const type = accent === 'en-GB' ? 1 : 2;
+      const primaryUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${type}`;
+      this.showAccentStatus(`Đang phát giọng ${accent}...`);
       this.playHtmlAudio(primaryUrl, () => {
-        this.playHtmlAudio(backupUrl, () => {
-          this.playWebSpeech(word, rate);
-        });
+        if (session === this.playSession) this.playWebSpeech(word, rate);
       });
     }
 
@@ -602,36 +624,85 @@
     }
 
     static playWebSpeech(text, rate = 0.9) {
-      if (!('speechSynthesis' in window)) return;
-      try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
+      const accent = this.getAccent();
+      if (!('speechSynthesis' in window)) {
+        this.showAccentStatus('Trình duyệt này chưa hỗ trợ phát giọng nói.');
+        return;
+      }
+
+      const synth = window.speechSynthesis;
+      const requestId = (this.voiceRequestId || 0) + 1;
+      this.voiceRequestId = requestId;
+      let completed = false;
+      const playWithAvailableVoice = () => {
+        if (completed || requestId !== this.voiceRequestId) return;
+        completed = true;
+        const voices = synth.getVoices();
+        const selectedVoice = voices.find(v =>
+          String(v.lang || '').replace('_', '-').toLowerCase() === accent.toLowerCase()
+        );
+        if (!selectedVoice) {
+          this.showAccentStatus(`Chưa có giọng ${accent} trong trình duyệt; hãy cài giọng này trên Windows/Edge.`);
+          return;
         }
-        window.speechSynthesis.cancel();
 
-        setTimeout(() => {
-          try {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.rate = rate;
-
-            const voices = window.speechSynthesis.getVoices();
-            if (voices && voices.length > 0) {
-              const englishVoice = voices.find(v => v.lang && (v.lang === 'en-US' || v.lang.startsWith('en')) && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel')));
-              if (englishVoice) {
-                utterance.voice = englishVoice;
-              }
+        try {
+          synth.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = accent;
+          utterance.voice = selectedVoice;
+          utterance.rate = rate;
+          utterance.onerror = (event) => {
+            this.showAccentStatus(`Không thể phát giọng ${accent}: ${event.error || 'lỗi chưa xác định'}`);
+          };
+          setTimeout(() => {
+            if (requestId === this.voiceRequestId && accent === this.getAccent()) {
+              synth.speak(utterance);
+              this.showAccentStatus(`Giọng đang dùng: ${selectedVoice.name} (${accent}).`);
             }
-            window.speechSynthesis.speak(utterance);
-          } catch (e) {
-            console.warn('SpeechSynthesis error:', e);
-          }
-        }, 30);
-      } catch (e) {
-        console.warn('SpeechSynthesis resume error:', e);
+          }, 30);
+        } catch (e) {
+          console.warn('SpeechSynthesis error:', e);
+          this.showAccentStatus(`Không thể phát giọng ${accent}.`);
+        }
+      };
+
+      if (synth.getVoices().length) {
+        playWithAvailableVoice();
+      } else {
+        this.showAccentStatus('Đang tải danh sách giọng từ trình duyệt...');
+        const onVoicesChanged = () => {
+          synth.removeEventListener('voiceschanged', onVoicesChanged);
+          playWithAvailableVoice();
+        };
+        synth.addEventListener('voiceschanged', onVoicesChanged);
+        setTimeout(() => {
+          synth.removeEventListener('voiceschanged', onVoicesChanged);
+          playWithAvailableVoice();
+        }, 1500);
       }
     }
   }
+
+  // Phase 5 minimal-pair samples reuse the established US/UK SoundService.
+  window.addEventListener('vocamini:speak-reference-word', event => {
+    const word = event.detail?.word;
+    if (typeof word === 'string' && /^[a-z]{1,32}$/i.test(word)) {
+      SoundService.speak(word, 0.85);
+    }
+  });
+
+  // The offline A/B practice module can stop a currently playing reference sample.
+  // Keep the SoundService implementation private to app.js, without global API keys.
+  window.addEventListener('vocamini:stop-reference-audio', () => {
+    SoundService.playSession = (SoundService.playSession || 0) + 1;
+    SoundService.voiceRequestId = (SoundService.voiceRequestId || 0) + 1;
+    if (SoundService.currentAudio) {
+      try { SoundService.currentAudio.pause(); SoundService.currentAudio.currentTime = 0; } catch (e) {}
+      SoundService.currentAudio = null;
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  });
 
   // Pre-load voices for SpeechSynthesis
   if ('speechSynthesis' in window) {
@@ -866,6 +937,18 @@
       }
 
       this.initTheme();
+
+      const accentSelect = document.getElementById('pron-accent-select');
+      if (accentSelect) {
+        accentSelect.value = SoundService.getAccent();
+        accentSelect.addEventListener('change', () => {
+          SoundService.setAccent(accentSelect.value);
+          SoundService.showAccentStatus(`Đã chọn ${accentSelect.value}; bấm loa để nghe mẫu.`);
+          if (this.currentSearchResult?.word) {
+            SoundService.speak(this.currentSearchResult.word);
+          }
+        });
+      }
       
       this.autoPronounce = localStorage.getItem('vocamini_autopronounce') !== 'false';
       const apCb = document.getElementById('game-auto-pronounce-cb');
