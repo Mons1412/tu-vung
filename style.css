@@ -2114,3 +2114,13 @@ button {
 .pron-phone-note, .pron-phone-status { font-size:.82rem; line-height:1.5; color:var(--text-muted); margin:6px 0 10px; }
 .pron-phone-track { margin-top:10px; display:grid; gap:8px; }
 .pron-phone-track[hidden] { display:none !important; }
+
+/* Phase 6.3A — descriptive, local acoustic features, never a pronunciation score */
+.pron-acoustic-features { margin-top:12px; padding:11px; border:1px solid var(--border-color,#cbd5e1); border-radius:9px; background:var(--card-bg,transparent); }
+.pron-acoustic-features[hidden] { display:none !important; }
+.pron-acoustic-features h6 { margin:0 0 9px; font-size:.9rem; color:var(--text-main); }
+.pron-feature-status, .pron-feature-note { font-size:.8rem; line-height:1.5; margin:7px 0 10px; color:var(--text-muted); }
+.pron-feature-track { display:grid; gap:7px; }
+.pron-feature-row { display:flex; flex-direction:column; gap:3px; border:1px solid var(--border-color,#cbd5e1); border-radius:7px; padding:8px 9px; overflow-wrap:anywhere; font-size:.8rem; color:var(--text-main); }
+.pron-feature-row strong { font-size:.87rem; }
+.pron-feature-row span { line-height:1.5; }

@@ -25,5 +25,5 @@ test('MFA is gated to US, expected word and user action', () => {
 
 test('Service Worker bypasses all APIs', () => {
   assert.match(sw, /requestUrl\.pathname\.startsWith\('\/api\/'\)/);
-  assert.match(sw, /vocamini-cache-v10/);
+  assert.match(sw, /vocamini-cache-v16/);
 });

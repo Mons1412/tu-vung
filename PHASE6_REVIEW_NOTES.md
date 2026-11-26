@@ -30,3 +30,17 @@
 - Thời gian MFA là forced alignment theo **từ mục tiêu**; nếu đọc sai, MFA vẫn có thể ép âm vào các khoảng thời gian. Chưa phải chấm lỗi phát âm.
 - MFA chạy ngoài `.venv` qua Conda, có thể tạo cache/log tạm trong MFA workspace; không commit dữ liệu âm thanh người dùng.
 - Đợi nghiệm thu thực tế mới tuyên bố tính năng đã hoạt động với MFA thật trên Windows.
+
+## Phase 6.3A — acoustic features (chưa chấm phát âm)
+
+- Tính RMS, Peak, zero-crossing rate và clipping theo từng khoảng MFA. Giá trị phụ thuộc microphone, nền ồn và độ chính xác của MFA. **Không dùng ngưỡng ZCR/RMS để quy kết âm vị sai.**
+- Cần benchmark với bản ghi do chuyên gia gán nhãn trước khi triển khai bất kỳ tính năng phát hiện lỗi (Phase 6.3B–E).
+- Sau cùng xem lại IPA của `water` trong UI khi chọn US: hiện có thể vẫn là IPA UK không khớp giọng mẫu/MFA; không đổi trong Phase 6.3A để tránh ảnh hưởng tính năng ổn định.
+- UK MFA chưa hỗ trợ; tránh dùng đặc trưng US để suy luận chất lượng giọng UK.
+
+## User-requested practice flow (post 6.3A)
+
+- Practice opens with immediate microphone permission/recording. Closing, switching words or accent clears stale browser recordings and aborts local fetches.
+- A valid stop or 15s timeout automatically posts WAV to Vosk. The ASR retry button remains optional; **not** a pronunciation scoring action.
+- Minimal Pairs removed from this panel and app script imports; source modules retained for later separate screen. Self-check checkboxes removed.
+- Manual Ubuntu/browser acceptance pending; test mic denial, double-clicks, word change during ASR and 15-second auto stop.

@@ -7,7 +7,7 @@
   'use strict';
 
   const MAX_DURATION_MS = 15000;
-  const WAITING_TEXT = 'Bản ghi được giữ tạm trong trình duyệt; chỉ gửi tới server local khi bạn nhấn nhận diện hoặc căn chỉnh MFA.';
+  const WAITING_TEXT = 'Bản ghi giữ tạm trong trình duyệt; khi dừng ghi sẽ tự gửi WAV đến server local để Vosk nhận diện. Không gửi âm thanh lên cloud.';
 
   class PronunciationRecorder {
     constructor() {
@@ -52,6 +52,9 @@
       this.alignButton = document.getElementById('btn-pron-align');
       this.alignStatus = document.getElementById('pron-align-status');
       this.phoneTrack = document.getElementById('pron-phone-track');
+      this.featurePanel = document.getElementById('pron-acoustic-features');
+      this.featureStatus = document.getElementById('pron-feature-status');
+      this.featureTrack = document.getElementById('pron-feature-track');
       this.alignmentController = null;
       this.alignmentBusy = false;
       this.asrMatched = false;
@@ -91,7 +94,7 @@
         if (nextWord !== this.currentWord) {
           this.cancel();
           this.updateTarget();
-          if (!this.panel.hidden) this.message('Từ đã thay đổi. Hãy ghi âm từ mới.');
+          if (!this.panel.hidden) this.message('Từ đã thay đổi. Bản ghi cũ đã xóa; nhấn “Ghi lại” để luyện từ mới.');
         }
       }).observe(this.wordElement, { characterData: true, childList: true, subtree: true });
 
@@ -153,8 +156,11 @@
       }
       this.panel.hidden = false;
       this.openButton.setAttribute('aria-expanded', 'true');
-      this.message(WAITING_TEXT);
+      this.message('Đang chuẩn bị ghi âm...');
       this.refreshButtons();
+      // The click on “Luyện phát âm từ này” is the user gesture that begins capture.
+      // start() checks permissions, word changes and duplicate recorder sessions.
+      void this.start();
     }
 
     closePanel() {
@@ -296,7 +302,7 @@
       this.clearRecordingQuality();
       this.clearWordTiming();
       this.clearPhonemeAlignment();
-      if (this.asrResult) this.asrResult.textContent = 'Bấm “Kiểm tra máy nghe được gì” để nhận diện offline bằng Vosk.';
+      if (this.asrResult) this.asrResult.textContent = 'Đang chuẩn bị nhận diện tự động bằng Vosk...';
       this.objectUrl = URL.createObjectURL(blob);
       this.audioElement.src = this.objectUrl;
       this.audioElement.hidden = false;
@@ -305,14 +311,12 @@
       if (this.speedSelect) this.speedSelect.value = '1';
       this.audioElement.playbackRate = 1;
       if (this.compareStatus) this.compareStatus.textContent = 'Bấm A để nghe mẫu, B để nghe bản ghi của bạn.';
-      this.resetSelfChecks();
-      this.message('Đã ghi xong! Bấm A/B để nghe so sánh và ghi lại khi cần.');
+      this.message('Đã ghi xong. Vosk đang nhận diện tự động trên máy local...');
       this.refreshButtons();
-      this.analyzeAudio(blob, session.generation);
-    }
-
-    resetSelfChecks() {
-      this.panel.querySelectorAll('.pron-self-check-item').forEach(item => { item.checked = false; });
+      void this.analyzeAudio(blob, session.generation);
+      // Automatically run ASR after a valid finished recording, not after cancel/delete.
+      // The existing generation + AbortController prevent stale UI results on word changes.
+      void this.recognizeOffline();
     }
 
     playSample() {
@@ -433,7 +437,7 @@
       this.asrMatched = false;
       this.clearPhonemeAlignment();
       this.refreshButtons();
-      if (this.asrResult) this.asrResult.textContent = 'Đang chuyển âm thanh sang WAV và nhận diện trên Windows...';
+      if (this.asrResult) this.asrResult.textContent = 'Đang chuyển âm thanh sang WAV và nhận diện trên máy local...';
       const controller = new AbortController();
       this.asrController = controller;
       try {
@@ -473,7 +477,7 @@
         if (generation !== this.generation || controller.signal.aborted) return;
         const detected = data.recognized || '(không nhận diện được)';
         const notice = data.matched
-          ? 'Máy nhận ra từ mục tiêu. Hãy tiếp tục nghe A/B để tự kiểm tra các âm.'
+          ? 'Máy nhận ra từ mục tiêu. Bạn có thể nghe A/B hoặc thử căn chỉnh MFA (US). Đây không phải điểm phát âm.'
           : 'Máy chưa nhận đúng từ mục tiêu. Có thể do phát âm, tiếng ồn hoặc giới hạn của ASR.';
         if (this.asrResult) this.asrResult.textContent = `Từ mục tiêu: ${word}\nMáy nhận được: ${detected}\n${notice}\nModel US được dùng để nhận diện cả hai lựa chọn giọng; kết quả không phải điểm phát âm.`;
         this.renderRecordingQuality(data.recording_quality);
@@ -507,6 +511,7 @@
       this.alignmentBusy = false;
       this.asrMatched = false;
       if (this.phoneTrack) { this.phoneTrack.hidden = true; this.phoneTrack.replaceChildren(); }
+      this.clearAcousticFeatures();
       if (this.alignStatus) this.alignStatus.textContent = 'Nhận diện thành công từ US trước để bật tính năng thử nghiệm.';
     }
 
@@ -517,6 +522,7 @@
       this.alignmentController = controller;
       this.alignmentBusy = true;
       if (this.phoneTrack) { this.phoneTrack.hidden = true; this.phoneTrack.replaceChildren(); }
+      this.clearAcousticFeatures();
       if (this.alignStatus) this.alignStatus.textContent = 'MFA đang căn chỉnh theo từ mục tiêu trên máy local...';
       this.refreshButtons();
       try {
@@ -582,6 +588,49 @@
       }
       this.phoneTrack.hidden = false;
       this.alignStatus.textContent = `MFA ước tính ${intervals.length} khoảng âm theo ARPAbet (US). Đây là căn chỉnh theo từ mục tiêu, không xác nhận bạn phát âm đúng.`;
+      this.renderAcousticFeatures(data.acoustic_features, intervals, data.duration_s);
+    }
+
+    clearAcousticFeatures() {
+      if (this.featurePanel) this.featurePanel.hidden = true;
+      if (this.featureTrack) this.featureTrack.replaceChildren();
+      if (this.featureStatus) this.featureStatus.textContent = '';
+    }
+
+    renderAcousticFeatures(features, phoneIntervals, recordingDuration) {
+      this.clearAcousticFeatures();
+      if (!this.featurePanel || !this.featureStatus || !this.featureTrack) return;
+      if (!features || features.source !== 'pcm16_mfa_interval_features' ||
+          features.status !== 'extracted' || features.feature_only !== true ||
+          features.pronunciation_score !== null || features.sample_rate_hz !== 16000 ||
+          !Number.isFinite(features.duration_s) ||
+          Math.abs(features.duration_s - recordingDuration) > 0.02 ||
+          !Array.isArray(features.intervals) || features.intervals.length !== phoneIntervals.length) return;
+
+      const valid = features.intervals.every((feature, i) => {
+        const phone = phoneIntervals[i];
+        return feature && phone && feature.phone === phone.phone &&
+          Math.abs(feature.start_s - phone.start_s) < 0.01 &&
+          Math.abs(feature.end_s - phone.end_s) < 0.01 &&
+          Number.isFinite(feature.duration_ms) && feature.duration_ms > 0 &&
+          Number.isFinite(feature.rms_dbfs) && feature.rms_dbfs >= -96 && feature.rms_dbfs <= 0.1 &&
+          Number.isFinite(feature.peak_dbfs) && feature.peak_dbfs >= -96 && feature.peak_dbfs <= 0.1 &&
+          Number.isFinite(feature.zero_crossings_per_s) && feature.zero_crossings_per_s >= 0 && feature.zero_crossings_per_s <= 16000 &&
+          Number.isFinite(feature.clipped_pct) && feature.clipped_pct >= 0 && feature.clipped_pct <= 100;
+      });
+      if (!valid) return; // Do not render features that don't correspond to MFA intervals.
+      features.intervals.forEach(feature => {
+        const row = document.createElement('div');
+        row.className = 'pron-feature-row';
+        const heading = document.createElement('strong');
+        heading.textContent = `${feature.phone} · ${feature.duration_ms.toFixed(1)} ms`;
+        const numbers = document.createElement('span');
+        numbers.textContent = `RMS ${feature.rms_dbfs.toFixed(1)} dBFS · Peak ${feature.peak_dbfs.toFixed(1)} dBFS · ZCR ${feature.zero_crossings_per_s.toFixed(1)}/s · Clipping ${feature.clipped_pct.toFixed(2)}%`;
+        row.append(heading, numbers);
+        this.featureTrack.appendChild(row);
+      });
+      this.featurePanel.hidden = false;
+      this.featureStatus.textContent = `Đã trích xuất đặc trưng PCM cho ${features.intervals.length} khoảng âm do MFA căn chỉnh. Không chấm phát âm.`;
     }
 
     clearRecordingQuality() {
@@ -669,7 +718,7 @@
       this.asrController = null;
       this.asrBusy = false;
       this.latestBlob = null;
-      if (this.asrResult) this.asrResult.textContent = 'Ghi âm xong rồi nhấn kiểm tra. Không gửi bản ghi lên cloud.';
+      if (this.asrResult) this.asrResult.textContent = 'Dừng ghi để Vosk tự nhận diện trên server local. Không gửi bản ghi lên cloud.';
       this.clearRecordingQuality();
       this.clearWordTiming();
       this.clearPhonemeAlignment();
@@ -684,7 +733,6 @@
       if (this.compareStatus) this.compareStatus.textContent = '';
       if (this.waveMeta) this.waveMeta.textContent = 'Chưa có bản ghi.';
       if (this.waveform) this.waveform.getContext('2d')?.clearRect(0, 0, this.waveform.width, this.waveform.height);
-      this.resetSelfChecks();
     }
 
     cancel() {

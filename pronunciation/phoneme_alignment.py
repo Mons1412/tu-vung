@@ -18,6 +18,8 @@ import tempfile
 import wave
 import io
 
+from phoneme_acoustics import extract_phoneme_features
+
 
 class AlignmentUnavailable(RuntimeError):
     """MFA is not installed/configured or cannot run."""
@@ -157,4 +159,13 @@ def align_audio_mfa(wav_bytes: bytes, raw_expected: str, accent: str) -> dict:
             payload = json.loads(aligned.read_text(encoding="utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise AlignmentFailed("Không đọc được JSON do MFA tạo ra.") from exc
-        return parse_mfa_json(payload, expected, duration_s)
+        result = parse_mfa_json(payload, expected, duration_s)
+        # Reuse the SAME audio/intervals as the real MFA response; never run
+        # alignment a second time or derive a pronunciation score.
+        try:
+            result["acoustic_features"] = extract_phoneme_features(wav_bytes, result["intervals"])
+        except ValueError:
+            # Measurement failure must not discard a valid MFA alignment.
+            result["acoustic_features"] = None
+            result["acoustic_features_note"] = "Chưa đo được đặc trưng âm học cho bản ghi này."
+        return result

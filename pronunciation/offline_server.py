@@ -19,6 +19,7 @@ from pathlib import Path
 from vosk import KaldiRecognizer, Model, SetLogLevel
 from audio_diagnostics import analyze_wav
 from phoneme_alignment import align_audio_mfa, AlignmentUnavailable, AlignmentFailed
+from offline_ipa import lookup as lookup_ipa, IpaDbUnavailable, database_path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "models" / "vosk-model-small-en-us-0.15"
@@ -122,6 +123,18 @@ def make_handler(model: Model):
             route = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
             if route == "/api/pronunciation/health":
                 return self.send_json(200, {"status": "ready", "offline": True, "model": "vosk-model-small-en-us-0.15", "recognition_only": True})
+            if route == "/api/pronunciation/ipa":
+                query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, keep_blank_values=True)
+                try:
+                    if len(query.get('word', [])) != 1 or len(query.get('accent', [])) > 1:
+                        raise ValueError('Cần đúng một tham số word và tối đa một tham số accent.')
+                    word = query['word'][0]
+                    accent = query.get('accent', [None])[0]
+                    return self.send_json(200, lookup_ipa(word, accent))
+                except ValueError as error:
+                    return self.send_json(400, {'error': str(error)})
+                except IpaDbUnavailable as error:
+                    return self.send_json(503, {'error': str(error)})
             # Local-only server: do not expose source metadata, models, Python env or config.
             parts = route.replace("\\", "/").split("/")
             if any(part.startswith(".") or part == "models" for part in parts if part) or route.endswith(".py"):
@@ -171,6 +184,9 @@ def main():
         print(f"[ERROR] Chưa có model: {MODEL_PATH}")
         print("Tải vosk-model-small-en-us-0.15.zip từ https://alphacephei.com/vosk/models")
         sys.exit(1)
+    if not database_path().is_file():
+        print(f"[IPA] Chưa có cơ sở dữ liệu offline: {database_path()}")
+        print("[IPA] Đặt biến VOCAMINI_IPA_DB để trỏ đến file .sqlite đã giải nén.")
     print("Đang tải model Vosk vào RAM...")
     model = Model(str(MODEL_PATH))
     server = ThreadingHTTPServer(("127.0.0.1", 5500), make_handler(model))

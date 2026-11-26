@@ -94,6 +94,9 @@ class MFAParserTest(unittest.TestCase):
         with patch.object(mfa,'_mfa_base_command',return_value=['mfa-test']), patch.object(mfa.subprocess,'run',side_effect=fake_run):
             data = mfa.align_audio_mfa(wav_bytes(),'water','en-US')
         self.assertEqual(len(data['intervals']),4)
+        self.assertTrue(data['acoustic_features']['feature_only'])
+        self.assertEqual(len(data['acoustic_features']['intervals']), 4)
+        self.assertIsNone(data['acoustic_features']['pronunciation_score'])
         self.assertFalse(observed[0].exists())
 
     def test_failed_mfa_does_not_leave_temporary_audio(self):

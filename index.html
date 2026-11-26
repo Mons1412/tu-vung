@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
   <link rel="apple-touch-icon" href="icon-192.jpg">
+  <link rel="stylesheet" href="pronunciation/word-insights.css">
 </head>
 <body>
 
@@ -125,6 +126,7 @@
               <span id="dict-display-phonetic">/wɜːd/</span>
               <span id="dict-display-pos" class="badge" style="background: var(--primary-light); color: var(--primary); font-size: 0.85rem;">(noun)</span>
             </div>
+            <small id="dict-ipa-status" class="pron-ipa-status" role="status" aria-live="polite"></small>
             <div class="pron-accent-control">
               <label for="pron-accent-select">Giọng phát âm:</label>
               <select id="pron-accent-select" aria-label="Chọn giọng phát âm tiếng Anh">
@@ -133,6 +135,17 @@
               </select>
             </div>
             <small id="pron-accent-status" class="pron-accent-status" aria-live="polite"></small>
+            <!-- IPA-based practice hints: derived from the displayed dictionary IPA and example sentence. -->
+            <section id="pron-insights" class="pron-insights" aria-label="Kiến thức phát âm theo từ" aria-live="polite">
+              <h3 class="pron-insights-title">🔎 Phân tích phát âm từ vựng</h3>
+              <dl class="pron-insights-grid">
+                <div class="pron-insights-item"><dt>Sounds · Các âm</dt><dd id="pron-insights-sounds">Đang tải IPA...</dd></div>
+                <div class="pron-insights-item"><dt>Syllables · Âm tiết</dt><dd id="pron-insights-syllables">—</dd></div>
+                <div class="pron-insights-item"><dt>Stress · Trọng âm</dt><dd id="pron-insights-stress">—</dd></div>
+                <div class="pron-insights-item"><dt>Linking · Nối âm</dt><dd id="pron-insights-linking">—</dd></div>
+              </dl>
+              <p id="pron-insights-note" class="pron-insights-note"></p>
+            </section>
           </div>
           <button id="btn-save-to-notebook" class="btn btn-primary">
             ➕ Lưu vào sổ tay
@@ -153,30 +166,14 @@
             </div>
             <button type="button" id="btn-pron-close" class="btn btn-secondary btn-sm" aria-label="Đóng phần luyện phát âm">Đóng</button>
           </div>
-          <p class="pron-record-help">Nhấn nghe mẫu trước khi ghi âm. Dùng tai nghe để tránh tiếng mẫu lọt vào microphone.</p>
-          <!-- Phase 5: guided minimal-pair practice; no automatic phoneme scoring. -->
-          <section id="pron-minimal-pairs" class="pron-minimal-pairs" aria-labelledby="pron-pair-heading">
-            <h4 id="pron-pair-heading">🗣️ Luyện cặp âm dễ nhầm (Minimal Pairs)</h4>
-            <p class="pron-record-help">Chọn hai từ chỉ khác một âm. Nghe từng từ theo giọng US/UK đang chọn, xem khẩu hình và tự luyện lại bằng nút ghi âm ở dưới.</p>
-            <label class="pron-pair-label" for="pron-pair-select">Cặp âm muốn luyện</label>
-            <select id="pron-pair-select" class="pron-pair-select" aria-label="Chọn bài tập minimal pairs"></select>
-            <div id="pron-pair-cards" class="pron-pair-cards" aria-label="Hai từ trong cặp âm"></div>
-            <div class="pron-pair-guide">
-              <strong>💡 Điểm cần chú ý</strong>
-              <p id="pron-pair-difference"></p>
-              <ul id="pron-pair-tips"></ul>
-            </div>
-            <p id="pron-pair-status" class="pron-pair-status" role="status" aria-live="polite"></p>
-            <p class="pron-pair-note">IPA là phiên âm tham khảo theo từ điển. Vosk chỉ nhận diện từ, không xác định âm vị phát âm đúng hay sai.</p>
-          </section>
-
+          <p class="pron-record-help">Bấm “Luyện phát âm từ này” để ghi âm ngay. Bấm Dừng ghi khi đọc xong (tối đa 15 giây); Vosk sẽ tự nhận diện trên máy. Bạn vẫn có thể nghe giọng mẫu và ghi lại khi cần.</p>
           <div class="pron-record-actions">
-            <button type="button" id="btn-pron-record" class="btn btn-primary btn-sm">🎙️ Bắt đầu ghi</button>
+            <button type="button" id="btn-pron-record" class="btn btn-primary btn-sm">🎙️ Ghi lại / Thử lại</button>
             <button type="button" id="btn-pron-stop" class="btn btn-secondary btn-sm" disabled>⏹ Dừng ghi</button>
             <button type="button" id="btn-pron-clear" class="btn btn-secondary btn-sm" disabled>🗑️ Xóa bản ghi</button>
             <span id="pron-record-timer" class="pron-record-timer" aria-label="Thời gian ghi âm">00:00 / 00:15</span>
           </div>
-          <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi được giữ tạm trong trình duyệt; chỉ gửi tới server local khi bạn nhấn nhận diện hoặc căn chỉnh MFA.</p>
+          <p id="pron-record-status" class="pron-record-status" role="status" aria-live="polite">Bản ghi được giữ tạm trong trình duyệt. Khi dừng ghi, ứng dụng tự gửi WAV đến server local để Vosk nhận diện; không gửi âm thanh lên cloud.</p>
           <audio id="pron-record-playback" controls preload="none" aria-label="Nghe lại giọng của bạn" hidden></audio>
           <section id="pron-compare-panel" class="pron-compare-panel" aria-label="So sánh phát âm" hidden>
             <h4>🎧 So sánh giọng mẫu và giọng của bạn</h4>
@@ -197,17 +194,11 @@
               <canvas id="pron-user-waveform" height="88" width="640" role="img" aria-label="Dạng sóng biên độ bản ghi của bạn"></canvas>
               <p id="pron-wave-meta">Đang đọc tín hiệu âm thanh...</p>
             </figure>
-            <fieldset class="pron-self-check">
-              <legend>Tự kiểm tra sau khi nghe hai giọng</legend>
-              <label><input type="checkbox" class="pron-self-check-item"> Nguyên âm nghe gần giống mẫu</label>
-              <label><input type="checkbox" class="pron-self-check-item"> Phụ âm đầu và cuối nghe rõ</label>
-              <label><input type="checkbox" class="pron-self-check-item"> Trọng âm và nhịp gần giống mẫu</label>
-            </fieldset>
             <section id="pron-asr-panel" class="pron-asr-panel" aria-label="Nhận diện giọng nói offline">
               <h4>🧠 AI nhận diện từ (local)</h4>
-              <p class="pron-record-help">Dùng Vosk trên máy Windows để xem máy đã nghe ra từ nào. Đây <strong>không phải</strong> điểm chấm phát âm hoặc đánh giá Anh–Anh/Anh–Mỹ.</p>
-              <button type="button" id="btn-pron-asr" class="btn btn-secondary btn-sm" disabled>🔍 Kiểm tra máy nghe được gì</button>
-              <p id="pron-asr-result" class="pron-asr-result" role="status" aria-live="polite">Ghi âm xong rồi nhấn kiểm tra. Âm thanh chỉ gửi tới server local khi bạn chủ động nhấn nút.</p>
+              <p class="pron-record-help">Dùng Vosk trên máy local để nhận diện tự động từ được nói sau khi dừng ghi. Đây <strong>không phải</strong> điểm chấm phát âm hoặc đánh giá Anh–Anh/Anh–Mỹ.</p>
+              <button type="button" id="btn-pron-asr" class="btn btn-secondary btn-sm" disabled>🔄 Nhận diện lại (nếu cần)</button>
+              <p id="pron-asr-result" class="pron-asr-result" role="status" aria-live="polite">Sau khi dừng ghi, Vosk sẽ tự nhận diện. Bạn có thể thử lại nếu kết nối local gặp lỗi.</p>
               <!-- Phase 6.1: microphone signal-quality precheck; NOT pronunciation grading. -->
               <section id="pron-audio-quality" class="pron-audio-quality" aria-label="Kiểm tra chất lượng bản ghi" aria-live="polite" hidden>
                 <h5>🎛️ Kiểm tra tín hiệu ghi âm</h5>
@@ -228,11 +219,18 @@
                 <button type="button" id="btn-pron-align" class="btn btn-secondary btn-sm" disabled>🧪 Căn chỉnh âm vị bằng MFA</button>
                 <p id="pron-align-status" role="status" aria-live="polite" class="pron-phone-status">Nhận diện thành công từ US trước để bật tính năng thử nghiệm.</p>
                 <div id="pron-phone-track" class="pron-phone-track" hidden></div>
+                <!-- Phase 6.3A: signal features measured ONLY within genuine MFA phone intervals. -->
+                <section id="pron-acoustic-features" class="pron-acoustic-features" aria-label="Đặc trưng âm học theo từng khoảng âm" hidden>
+                  <h6>📊 Đặc trưng tín hiệu theo từng khoảng âm (thử nghiệm)</h6>
+                  <p id="pron-feature-status" role="status" class="pron-feature-status"></p>
+                  <div id="pron-feature-track" class="pron-feature-track"></div>
+                  <p class="pron-feature-note">RMS/Peak là mức tín hiệu (dBFS); ZCR là số lần sóng đổi dấu mỗi giây, rất nhạy với tạp âm. Các số đo KHÔNG phải điểm phát âm, không khẳng định một âm được đọc đúng/sai.</p>
+                </section>
               </section>
             </section>
             <button type="button" id="btn-pron-compare-retry" class="btn btn-primary btn-sm">🎙️ Ghi lại để luyện thêm</button>
           </section>
-          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Bản ghi gửi tới server local khi bạn chủ động nhận diện hoặc yêu cầu MFA; MFA xử lý bằng file tạm, sẽ được xóa khi yêu cầu hoàn tất. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
+          <p class="pron-record-disclaimer">Miễn phí, không dùng Azure hay API chấm phát âm. Khi dừng ghi, WAV tự gửi tới server local để Vosk nhận diện; MFA chỉ chạy khi bạn chủ động bấm căn chỉnh. MFA có thể tạo file tạm và xóa sau xử lý. Giọng mẫu có thể cần Internet nếu VocaMini dùng nguồn audio trực tuyến. So sánh bằng tai không xác định chính xác lỗi âm vị.</p>
         </section>
 
         <!-- Image Illustration (TFlat style) -->
@@ -1162,7 +1160,7 @@
   <!-- JavaScript Application Script -->
   <script src="app.js"></script>
   <script src="pronunciation/recorder.js"></script>
-  <script src="pronunciation/phoneme-data.js"></script>
-  <script src="pronunciation/minimal-pairs.js"></script>
+  <script src="pronunciation/accent-ipa.js"></script>
+  <script src="pronunciation/word-insights.js"></script>
 </body>
 </html>
